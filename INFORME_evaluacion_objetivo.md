@@ -182,12 +182,47 @@ culpable y el veredicto por clase.
 Hasta entonces, los umbrales de R, L, S, Q, K y V deben tratarse como **inflados
 al alza**, y el `no_viable` de R como **no confirmado**.
 
-## Estas son hipótesis, no resultados
+## CORRECCIÓN: la prueba con cámara que excluyó 8 letras era inválida
 
-Todas las cifras de arriba son de dataset. M y N tenían 0.92 y 0.96 en dataset y
-fallan con cámara real. Por eso cada letra sale en el JSON con
-`verificada_con_camara: false`, y las recuperadas van a `vocabulario_propuesto`,
-**nunca a `vocabulario_activo`**. Ninguna entra a la app sin prueba con cámara.
+Este informe afirmaba en versiones anteriores que "M y N tenían 0.92 y 0.96 en
+dataset y fallan con cámara real", y lo usaba como prueba de que las métricas de
+laboratorio no predicen el comportamiento real.
+
+**Esa afirmación no se sostiene.** Al revisar las imágenes de referencia y repetir
+la prueba, C, E, K, M y N funcionan: en la prueba original quien probaba estaba
+ejecutando mal esas señas. Lo que falló fue la prueba, no el modelo — y los
+números de dataset, que decían que esas letras estaban bien, tenían razón:
+
+| letra | recall en los 16 participantes held-out |
+|---|---|
+| K, M | 1.00 |
+| C | 0.94 |
+| H | 0.88 |
+| N | 0.87 |
+| E | 0.81 |
+
+La lección sigue en pie, pero es otra: **una prueba con cámara donde quien prueba
+no domina las señas mide a la persona, no al modelo.** De ahí que la exclusión de
+C, E, H, K, M y N deba revisarse, y que la prueba de verdad necesite protocolo.
+
+## Siguen siendo hipótesis, pero por otra razón
+
+Las cifras de este informe son de dataset, y cada letra sale del JSON con
+`verificada_con_camara: false`. Eso ya no significa "sospechamos que el modelo
+falla", sino **"todavía no existe una prueba con cámara que sirva"**: la que había
+resultó inválida, y la repetición fue una persona sola, informal y sin protocolo
+— la misma clase de evidencia que ya se equivocó una vez, solo que con el signo
+cambiado.
+
+Una prueba que aguante revisión necesita: varias personas, la imagen de
+referencia a la vista, letras en orden aleatorio, conteo de intentos, y
+**ejecuciones incorrectas a propósito** para comprobar que se rechazan — sin esto
+último se mide si la app aprueba, no si enseña.
+
+Un caso merece atención aparte: **Ñ**. Que "funcione" en modo objetivo es
+esperable y no es buena noticia. La Ñ estática es la N (co-activación 0.300 y
+0.305), así que cuando la app pregunta "¿esto es una Ñ?" y el usuario hace una N,
+se la da por buena. Parece acertar justamente porque no puede distinguirlas.
 
 ## Cómo correrlo
 
