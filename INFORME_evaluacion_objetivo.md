@@ -131,6 +131,42 @@ Consecuencia directa: el umbral de L (0.54 → 0.83) y el de R (0.01 → 0.61) e
 inflados por negativos que probablemente **son** esas letras. El 62.5 % de falso
 rechazo de R puede ser un defecto del conjunto de negativos, no del modelo.
 
+### Por qué el sondeo de colisiones no lo atrapó
+
+Las 8 clases usadas salieron de la lista `CANDIDATAS A NEGATIVO DIFÍCIL` del
+sondeo del notebook, que las aprobó correctamente según su criterio: colisiona
+una clase si **≥50 % de sus muestras** caen en una letra con **confianza ≥0.75**.
+
+| clase usada | % como letra | letra dominante | conf. |
+|---|---|---|---|
+| `two_up` | 12.5 % | **R** | 0.618 |
+| `two_up_inverted` | 22.5 % | **R** | 0.654 |
+| `peace_inverted` | 15.0 % | **R** | 0.542 |
+| `one` | 22.5 % | S | 0.597 |
+| `three2` | 20.0 % | V | 0.577 |
+| `dislike` | 20.0 % | P | 0.574 |
+| `stop_inverted` | 17.5 % | Q | 0.535 |
+
+El criterio es **por clase y sobre el promedio**, así que una clase donde solo un
+15–22 % de las muestras son letras clarísimas pasa el filtro: el promedio la
+diluye. Pero esas muestras minoritarias siguen dentro de los negativos, y el tope
+del 5 % de FA de reposo es tan estricto que un puñado de ellas basta para mover
+el umbral.
+
+Dos cosas que el filtro por clase no vio:
+
+1. **Tres de las ocho clases apuntan a R** (`two_up`, `two_up_inverted`,
+   `peace_inverted`). Juntas son 150 negativos con un 12–22 % de muestras
+   R-como-R: del orden de 25 negativos empujando el umbral de R, que está en el
+   vocabulario activo. Cuadra con los 63 negativos que puntúan >0.5 como R.
+2. **Ninguna clase tiene L como letra dominante**, y aun así hay 19 negativos por
+   encima de 0.95 como L. Un subconjunto fuerte dentro de una clase "segura" es
+   invisible para un criterio que promedia.
+
+La lección para el pipeline: el filtro de negativos debe ser **por muestra**, no
+por clase. Una clase puede aportar el 80 % de negativos legítimos y el 20 % de
+letras disfrazadas, y con un tope del 5 % ese 20 % decide el umbral.
+
 **Esto no se puede resolver con lo exportado:** el `.npz` guarda la lista de las 9
 clases pero no la clase de cada muestra, así que se ve *qué* letras están
 afectadas pero no *qué clase* las infla. La celda 15-bis del notebook ya guarda
