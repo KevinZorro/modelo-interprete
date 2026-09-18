@@ -68,8 +68,8 @@
     "M",
     "N"
   ],
-  "umbrales_provisionales": true,
-  "advertencia_umbrales_provisionales": "Si umbrales_provisionales es true, los umbrales se calibraron SIN negativos de mano en reposo: no está comprobado que un umbral bajo no apruebe a un usuario que dejó la mano quieta. Reejecutar con --negativos antes de usarlos en la app.",
+  "umbrales_provisionales": false,
+  "advertencia_umbrales_provisionales": null,
   "advertencia": "Las letras de 'vocabulario_propuesto' son HIPÓTESIS medidas sobre dataset, no resultados con cámara. Ninguna puede entrar al vocabulario de la app mientras verificada_con_camara sea false: M y N tenían 0.92 y 0.96 en dataset y fallan en la práctica.",
   "letras": {
     "A": {
@@ -95,8 +95,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0,
         "fa_cruzada_k_de_n": 0.0,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.94,
           0.94,
@@ -127,8 +127,8 @@
         "n_tomas_otras_letras": 413,
         "frr_k_de_n": 0.0,
         "fa_cruzada_k_de_n": 0.0,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0037,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.47,
           0.47,
@@ -159,8 +159,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0625,
         "fa_cruzada_k_de_n": 0.0146,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0175,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.25,
           0.25,
@@ -169,34 +169,34 @@
       }
     },
     "D": {
-      "umbral": 0.01,
+      "umbral": 0.02,
       "motivo_umbral": "frr_inalcanzable",
       "grupo_equivalencia": [],
-      "estado": "viable",
+      "estado": "indeterminada",
       "en_vocabulario_activo": true,
       "verificada_con_camara": false,
       "metricas": {
         "protocolo": "leave-one-participant-out sobre 16 participantes held-out, por toma",
         "n_tomas": 16,
-        "frr": 0.0,
+        "frr": 0.0625,
         "frr_ic95": [
-          0.0,
-          0.1936
+          0.0111,
+          0.2833
         ],
-        "fa_cruzada": 0.0631,
+        "fa_cruzada": 0.0364,
         "fa_cruzada_ic95": [
-          0.0434,
-          0.0909
+          0.0222,
+          0.0592
         ],
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0,
-        "fa_cruzada_k_de_n": 0.0607,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_cruzada_k_de_n": 0.0364,
+        "fa_reposo": 0.0488,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
-          0.01,
-          0.01,
-          0.01
+          0.02,
+          0.02,
+          0.02
         ]
       }
     },
@@ -223,8 +223,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0,
         "fa_cruzada_k_de_n": 0.0218,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0462,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.06,
           0.06,
@@ -255,8 +255,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0625,
         "fa_cruzada_k_de_n": 0.0121,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0213,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.24,
           0.24,
@@ -287,8 +287,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0625,
         "fa_cruzada_k_de_n": 0.051,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.04,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.05,
           0.05,
@@ -297,7 +297,7 @@
       }
     },
     "H": {
-      "umbral": 0.01,
+      "umbral": 0.23,
       "motivo_umbral": "frr_inalcanzable",
       "grupo_equivalencia": [],
       "estado": "indeterminada",
@@ -306,25 +306,25 @@
       "metricas": {
         "protocolo": "leave-one-participant-out sobre 16 participantes held-out, por toma",
         "n_tomas": 16,
-        "frr": 0.0,
+        "frr": 0.1875,
         "frr_ic95": [
-          0.0,
-          0.1936
+          0.0659,
+          0.4301
         ],
-        "fa_cruzada": 0.1723,
+        "fa_cruzada": 0.0146,
         "fa_cruzada_ic95": [
-          0.1389,
-          0.2118
+          0.0067,
+          0.0314
         ],
         "n_tomas_otras_letras": 412,
-        "frr_k_de_n": 0.1875,
-        "fa_cruzada_k_de_n": 0.1553,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "frr_k_de_n": 0.3125,
+        "fa_cruzada_k_de_n": 0.0243,
+        "fa_reposo": 0.0462,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
-          0.01,
-          0.01,
-          0.01
+          0.23,
+          0.23,
+          0.23
         ]
       }
     },
@@ -351,8 +351,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0,
         "fa_cruzada_k_de_n": 0.017,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.23,
           0.23,
@@ -361,8 +361,8 @@
       }
     },
     "J": {
-      "umbral": 0.02,
-      "motivo_umbral": "frr_y_fa",
+      "umbral": 0.12,
+      "motivo_umbral": "tope_fa",
       "grupo_equivalencia": [],
       "estado": "indeterminada",
       "en_vocabulario_activo": true,
@@ -375,20 +375,20 @@
           0.0,
           0.2039
         ],
-        "fa_cruzada": 0.1308,
+        "fa_cruzada": 0.0291,
         "fa_cruzada_ic95": [
-          0.1016,
-          0.1667
+          0.0167,
+          0.0501
         ],
         "n_tomas_otras_letras": 413,
         "frr_k_de_n": 0.0,
-        "fa_cruzada_k_de_n": 0.1138,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_cruzada_k_de_n": 0.0315,
+        "fa_reposo": 0.045,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
-          0.02,
-          0.02,
-          0.02
+          0.12,
+          0.12,
+          0.12
         ]
       }
     },
@@ -415,8 +415,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.125,
         "fa_cruzada_k_de_n": 0.0,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0013,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.85,
           0.85,
@@ -425,8 +425,8 @@
       }
     },
     "L": {
-      "umbral": 0.54,
-      "motivo_umbral": "frr_y_fa",
+      "umbral": 0.83,
+      "motivo_umbral": "tope_fa",
       "grupo_equivalencia": [],
       "estado": "indeterminada",
       "en_vocabulario_activo": true,
@@ -434,24 +434,24 @@
       "metricas": {
         "protocolo": "leave-one-participant-out sobre 16 participantes held-out, por toma",
         "n_tomas": 16,
-        "frr": 0.0625,
+        "frr": 0.125,
         "frr_ic95": [
-          0.0111,
-          0.2833
+          0.035,
+          0.3602
         ],
-        "fa_cruzada": 0.0049,
+        "fa_cruzada": 0.0,
         "fa_cruzada_ic95": [
-          0.0013,
-          0.0175
+          0.0,
+          0.0092
         ],
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0625,
-        "fa_cruzada_k_de_n": 0.0049,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_cruzada_k_de_n": 0.0024,
+        "fa_reposo": 0.05,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
-          0.54,
-          0.54,
+          0.83,
+          0.83,
           0.85
         ]
       }
@@ -479,8 +479,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0,
         "fa_cruzada_k_de_n": 0.0,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0112,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.21,
           0.21,
@@ -511,8 +511,8 @@
         "n_tomas_otras_letras": 413,
         "frr_k_de_n": 0.0667,
         "fa_cruzada_k_de_n": 0.0291,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0013,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.25,
           0.25,
@@ -543,8 +543,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0625,
         "fa_cruzada_k_de_n": 0.0437,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0163,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.17,
           0.17,
@@ -575,8 +575,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0625,
         "fa_cruzada_k_de_n": 0.0097,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.005,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.16,
           0.16,
@@ -585,8 +585,8 @@
       }
     },
     "P": {
-      "umbral": 0.04,
-      "motivo_umbral": "frr_y_fa",
+      "umbral": 0.2,
+      "motivo_umbral": "tope_fa",
       "grupo_equivalencia": [],
       "estado": "indeterminada",
       "en_vocabulario_activo": true,
@@ -599,19 +599,19 @@
           0.0111,
           0.2833
         ],
-        "fa_cruzada": 0.0364,
+        "fa_cruzada": 0.0097,
         "fa_cruzada_ic95": [
-          0.0222,
-          0.0592
+          0.0038,
+          0.0247
         ],
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0625,
-        "fa_cruzada_k_de_n": 0.0316,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_cruzada_k_de_n": 0.0097,
+        "fa_reposo": 0.0488,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
-          0.04,
-          0.04,
+          0.2,
+          0.2,
           0.61
         ]
       }
@@ -639,8 +639,8 @@
         "n_tomas_otras_letras": 413,
         "frr_k_de_n": 0.0667,
         "fa_cruzada_k_de_n": 0.0,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0013,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.98,
           0.98,
@@ -649,8 +649,40 @@
       }
     },
     "R": {
-      "umbral": 0.01,
-      "motivo_umbral": "frr_y_fa",
+      "umbral": 0.61,
+      "motivo_umbral": "tope_fa",
+      "grupo_equivalencia": [],
+      "estado": "no_viable",
+      "en_vocabulario_activo": true,
+      "verificada_con_camara": false,
+      "metricas": {
+        "protocolo": "leave-one-participant-out sobre 16 participantes held-out, por toma",
+        "n_tomas": 16,
+        "frr": 0.625,
+        "frr_ic95": [
+          0.3864,
+          0.8152
+        ],
+        "fa_cruzada": 0.0,
+        "fa_cruzada_ic95": [
+          0.0,
+          0.0092
+        ],
+        "n_tomas_otras_letras": 412,
+        "frr_k_de_n": 0.4375,
+        "fa_cruzada_k_de_n": 0.0,
+        "fa_reposo": 0.0488,
+        "estado_fa_reposo": "medida",
+        "umbral_lopo_min_mediana_max": [
+          0.61,
+          0.61,
+          0.61
+        ]
+      }
+    },
+    "S": {
+      "umbral": 0.35,
+      "motivo_umbral": "tope_fa",
       "grupo_equivalencia": [],
       "estado": "indeterminada",
       "en_vocabulario_activo": true,
@@ -658,62 +690,30 @@
       "metricas": {
         "protocolo": "leave-one-participant-out sobre 16 participantes held-out, por toma",
         "n_tomas": 16,
-        "frr": 0.0625,
+        "frr": 0.1875,
         "frr_ic95": [
-          0.0111,
-          0.2833
+          0.0659,
+          0.4301
         ],
-        "fa_cruzada": 0.0801,
+        "fa_cruzada": 0.0121,
         "fa_cruzada_ic95": [
-          0.0576,
-          0.1104
+          0.0052,
+          0.0281
         ],
         "n_tomas_otras_letras": 412,
-        "frr_k_de_n": 0.0,
-        "fa_cruzada_k_de_n": 0.0704,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "frr_k_de_n": 0.1875,
+        "fa_cruzada_k_de_n": 0.0267,
+        "fa_reposo": 0.05,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
-          0.01,
-          0.01,
-          0.03
-        ]
-      }
-    },
-    "S": {
-      "umbral": 0.05,
-      "motivo_umbral": "frr_y_fa",
-      "grupo_equivalencia": [],
-      "estado": "viable",
-      "en_vocabulario_activo": true,
-      "verificada_con_camara": false,
-      "metricas": {
-        "protocolo": "leave-one-participant-out sobre 16 participantes held-out, por toma",
-        "n_tomas": 16,
-        "frr": 0.0,
-        "frr_ic95": [
-          0.0,
-          0.1936
-        ],
-        "fa_cruzada": 0.0995,
-        "fa_cruzada_ic95": [
-          0.0742,
-          0.1322
-        ],
-        "n_tomas_otras_letras": 412,
-        "frr_k_de_n": 0.0,
-        "fa_cruzada_k_de_n": 0.0898,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
-        "umbral_lopo_min_mediana_max": [
-          0.05,
-          0.05,
-          0.05
+          0.35,
+          0.35,
+          0.35
         ]
       }
     },
     "T": {
-      "umbral": 0.01,
+      "umbral": 0.03,
       "motivo_umbral": "frr_inalcanzable",
       "grupo_equivalencia": [],
       "estado": "indeterminada",
@@ -727,19 +727,19 @@
           0.0111,
           0.2833
         ],
-        "fa_cruzada": 0.0413,
+        "fa_cruzada": 0.0146,
         "fa_cruzada_ic95": [
-          0.0259,
-          0.0651
+          0.0067,
+          0.0314
         ],
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0625,
-        "fa_cruzada_k_de_n": 0.0267,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_cruzada_k_de_n": 0.0194,
+        "fa_reposo": 0.0387,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
-          0.01,
-          0.01,
+          0.03,
+          0.03,
           0.99
         ]
       }
@@ -767,8 +767,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0625,
         "fa_cruzada_k_de_n": 0.0024,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.33,
           0.33,
@@ -799,8 +799,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.125,
         "fa_cruzada_k_de_n": 0.0024,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0225,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.25,
           0.25,
@@ -809,7 +809,7 @@
       }
     },
     "W": {
-      "umbral": 0.01,
+      "umbral": 0.05,
       "motivo_umbral": "frr_inalcanzable",
       "grupo_equivalencia": [],
       "estado": "indeterminada",
@@ -823,20 +823,20 @@
           0.0111,
           0.2833
         ],
-        "fa_cruzada": 0.034,
+        "fa_cruzada": 0.0121,
         "fa_cruzada_ic95": [
-          0.0203,
-          0.0562
+          0.0052,
+          0.0281
         ],
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0625,
-        "fa_cruzada_k_de_n": 0.0194,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_cruzada_k_de_n": 0.0097,
+        "fa_reposo": 0.05,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
-          0.01,
-          0.01,
-          0.01
+          0.05,
+          0.05,
+          0.05
         ]
       }
     },
@@ -863,8 +863,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0625,
         "fa_cruzada_k_de_n": 0.0194,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0288,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.2,
           0.2,
@@ -895,8 +895,8 @@
         "n_tomas_otras_letras": 412,
         "frr_k_de_n": 0.0625,
         "fa_cruzada_k_de_n": 0.068,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "fa_reposo": 0.0075,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
           0.01,
           0.01,
@@ -905,7 +905,7 @@
       }
     },
     "Z": {
-      "umbral": 0.01,
+      "umbral": 0.22,
       "motivo_umbral": "frr_inalcanzable",
       "grupo_equivalencia": [],
       "estado": "no_viable_dinamica",
@@ -914,25 +914,25 @@
       "metricas": {
         "protocolo": "leave-one-participant-out sobre 16 participantes held-out, por toma",
         "n_tomas": 16,
-        "frr": 0.0,
+        "frr": 0.125,
         "frr_ic95": [
-          0.0,
-          0.1936
+          0.035,
+          0.3602
         ],
-        "fa_cruzada": 0.1529,
+        "fa_cruzada": 0.0049,
         "fa_cruzada_ic95": [
-          0.1214,
-          0.1909
+          0.0013,
+          0.0175
         ],
         "n_tomas_otras_letras": 412,
-        "frr_k_de_n": 0.0,
-        "fa_cruzada_k_de_n": 0.1165,
-        "fa_reposo": null,
-        "estado_fa_reposo": "pendiente_export_negativos",
+        "frr_k_de_n": 0.25,
+        "fa_cruzada_k_de_n": 0.0121,
+        "fa_reposo": 0.0462,
+        "estado_fa_reposo": "medida",
         "umbral_lopo_min_mediana_max": [
-          0.01,
-          0.01,
-          0.05
+          0.22,
+          0.22,
+          0.22
         ]
       }
     }
