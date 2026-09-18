@@ -87,19 +87,58 @@ para no rechazar hay que bajar el umbral a 0.01, y ahí la lección aprueba el
 17.2 % de las ejecuciones de otras letras (IC hasta 21.2 %, rozando el tope). H no
 está indeterminada por falta de datos, sino porque **no hay umbral que la salve**.
 
-## Lo que NO se midió
+## Con los negativos exportados: los umbrales ya no son provisionales
 
-La **falsa aceptación de mano en reposo** no se pudo recalcular: los 800 negativos
-de HaGRID no están en el cache (solo tiene letras). No se hereda la cifra vieja
-porque los umbrales cambiaron. Mientras falte, `config_objetivo.json` lleva
-`umbrales_provisionales: true` y cada letra `fa_reposo: null` con estado
-`pendiente_export_negativos`.
+Los 800 negativos se exportaron y se recalibró con la tercera restricción activa
+(FA de reposo ≤ 5 %). Los umbrales subieron, como estaba previsto:
 
-Para cerrarlo: correr la celda **15-bis. Exportar los negativos de reposo** del
-notebook (va justo después de la recolección de HaGRID y no reentrena nada) y
-volver a correr con `--negativos`. Cuando el archivo exista, la calibración añade
-una tercera restricción (FA de reposo ≤ 5 %) y los umbrales bajos —D, H, R, T, W,
-Y, que hoy están en 0.01— **van a subir**.
+| letra | umbral provisional | umbral final | FRR (IC95) | estado | en vocabulario activo |
+|---|---|---|---|---|---|
+| R | 0.01 | **0.61** | **62.5 % [38.6–81.5]** | **no viable** | sí |
+| S | 0.05 | 0.35 | 18.8 % [6.6–43.0] | indeterminada | sí |
+| H | 0.01 | 0.23 | 18.8 % [6.6–43.0] | indeterminada | no |
+| L | 0.54 | 0.83 | 12.5 % [3.5–36.0] | indeterminada | sí |
+| P | 0.04 | 0.20 | 6.2 % [1.1–28.3] | indeterminada | sí |
+| J | 0.02 | 0.12 | 0.0 % [0.0–20.4] | indeterminada | sí |
+| T, W, D | 0.01 | 0.03–0.05 | 6.2 % [1.1–28.3] | indeterminada | sí |
+
+Ganancia: **G e I** pasan a `viable` (antes indeterminadas), así que el conjunto
+con confianza es **E, G, I**. Pérdida grande: **R se cae a `no_viable`** con un
+falso rechazo del 62.5 %, y está en el vocabulario activo de la app.
+
+## Pero los negativos traen letras disfrazadas
+
+La exportación incluyó 8 clases de negativos difíciles además de `no_gesture`:
+`dislike`, `one`, `palm`, `peace_inverted`, `stop_inverted`, `three2`, `two_up`,
+`two_up_inverted`. `analisis_negativos.py` mide qué tan letra parecen:
+
+| letra | negativos con p>0.5 | con p>0.8 | con p>0.95 | máximo |
+|---|---|---|---|---|
+| R | 63 | 18 | 3 | 0.974 |
+| L | 61 | 42 | **19** | 0.998 |
+| S | 35 | 21 | 7 | 0.986 |
+| Q | 17 | 9 | 5 | 0.994 |
+| K | 14 | 3 | 0 | 0.904 |
+| V | 13 | 8 | 3 | 0.991 |
+
+Diecinueve negativos puntúan por encima de 0.95 como L, y el máximo llega a
+0.998. Eso no es un modelo confundido: es la misma pose. Comparar con el sondeo
+del propio notebook, que daba 0.930 para peace→V y 0.985 para three→W — el mismo
+orden de magnitud, y ahí la conclusión fue que esas clases **no pueden ser
+negativos**.
+
+Consecuencia directa: el umbral de L (0.54 → 0.83) y el de R (0.01 → 0.61) están
+inflados por negativos que probablemente **son** esas letras. El 62.5 % de falso
+rechazo de R puede ser un defecto del conjunto de negativos, no del modelo.
+
+**Esto no se puede resolver con lo exportado:** el `.npz` guarda la lista de las 9
+clases pero no la clase de cada muestra, así que se ve *qué* letras están
+afectadas pero no *qué clase* las infla. La celda 15-bis del notebook ya guarda
+`clase_por_muestra`; al reexportar, `analisis_negativos.py` señala la clase
+culpable y el veredicto por clase.
+
+Hasta entonces, los umbrales de R, L, S, Q, K y V deben tratarse como **inflados
+al alza**, y el `no_viable` de R como **no confirmado**.
 
 ## Estas son hipótesis, no resultados
 
@@ -114,6 +153,6 @@ fallan con cámara real. Por eso cada letra sale en el JSON con
 pip install -r requirements.txt
 python -m evaluacion_objetivo.pruebas                 # lógica de decisión
 python -m evaluacion_objetivo.analisis_equivalencias  # evidencia de equivalencias
-python -m evaluacion_objetivo.evaluar                 # métricas + config_objetivo.json
 python -m evaluacion_objetivo.evaluar --negativos negativos_reposo.npz
+python -m evaluacion_objetivo.analisis_negativos      # ¿hay letras disfrazadas?
 ```
