@@ -1,0 +1,6 @@
+# Evaluación dirigida por objetivo (post-proceso, sin entrenamiento).
+# No incluye TensorFlow a propósito: aquí no se reentrena nada, solo se corre
+# el .tflite ya desplegado.
+numpy>=1.26
+scikit-learn>=1.4        # solo para reproducir el GroupShuffleSplit original
+ai-edge-litert>=1.0      # intérprete .tflite (el runtime viejo no soporta este modelo)
