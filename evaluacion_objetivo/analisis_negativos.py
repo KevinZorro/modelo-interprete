@@ -14,17 +14,50 @@ Uso:
     python -m evaluacion_objetivo.analisis_negativos [--negativos ruta.npz]
 """
 import argparse
+import json
 from collections import Counter
 
 import numpy as np
 
 from .datos import cargar_cache, probabilidades
-from .evaluar import RUTA_CACHE, RUTA_MODELO
+from .evaluar import RUTA_CACHE, RUTA_CONFIG_SALIDA, RUTA_MODELO
+from .metricas import puntaje_objetivo
 
 # Un negativo que el modelo asigna a una letra con esta confianza no es "ruido
 # que el modelo confunde": es esa pose. El sondeo de HaGRID del notebook daba
 # 0.930 para peace->V y 0.985 para three->W, de ese orden.
 UMBRAL_DISFRAZ = 0.80
+
+
+def falsa_aceptacion_reposo(P, etiquetas, umbrales, k, semilla=42):
+    """FA de reposo por letra, por frame y por intento de ~6 frames.
+
+    El umbral se calibra con la FA por FRAME, pero el usuario no hace un frame:
+    sostiene la mano medio segundo. Los negativos se agrupan de a 6 al azar como
+    proxy de ese intento, igual que hacía el notebook.
+
+    OJO CON ESTA CIFRA: agrupar al azar mezcla 6 imágenes distintas, mientras que
+    una mano quieta da 6 frames casi idénticos. Con frames correlacionados, si uno
+    pasa el umbral pasan casi todos, así que el valor real de una mano de verdad
+    quieta está más cerca de la columna POR FRAME que de esta. Tómala como el
+    mejor caso, no como la cifra a reportar.
+    """
+    rng = np.random.default_rng(semilla)
+    orden = rng.permutation(len(P))
+    grupos = [orden[i:i + 6] for i in range(0, len(P) - 5, 6)]
+
+    print(f"\n=== FALSA ACEPTACIÓN DE REPOSO con los umbrales de "
+          f"{RUTA_CONFIG_SALIDA.name} ===")
+    print(f"{'letra':>5} {'umbral':>7} {'frames':>8} {'por frame':>10} "
+          f"{f'por intento (k={k} de 6)':>24}")
+    for i, letra in enumerate(etiquetas):
+        u = umbrales[letra]
+        n_frame = int((P[:, i] >= u).sum())
+        n_intento = sum(1 for g in grupos if (P[g, i] >= u).sum() >= k)
+        aviso = "  <-- en el tope" if n_frame / len(P) >= 0.0488 else ""
+        print(f"{letra:>5} {u:>7.2f} {n_frame:>8} {100*n_frame/len(P):>9.2f}% "
+              f"{100*n_intento/len(grupos):>23.1f}%{aviso}")
+    print(f"\n({len(grupos)} intentos simulados de 6 frames)")
 
 
 def main():
@@ -42,7 +75,12 @@ def main():
     print(f"El modelo los manda a 'no_es_seña' en {rechazo.sum()} casos "
           f"({100 * rechazo.mean():.0f} %)\n")
 
-    print("=== POR LETRA: negativos que puntúan alto como esa letra ===")
+    cfg = json.loads(RUTA_CONFIG_SALIDA.read_text(encoding="utf-8"))
+    falsa_aceptacion_reposo(P, etiquetas,
+                            {l: v["umbral"] for l, v in cfg["letras"].items()},
+                            cfg["k_de_n"])
+
+    print("\n=== POR LETRA: negativos que puntúan alto como esa letra ===")
     print(f"{'letra':>5} {'p>0.5':>7} {'p>0.8':>7} {'p>0.95':>7} {'max':>7}")
     for i, letra in enumerate(etiquetas):
         alto = (P[:, i] > 0.5).sum()

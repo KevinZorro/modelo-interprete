@@ -21,6 +21,7 @@ RUTA_CACHE = RAIZ / "landmarks_cache.npz"
 RUTA_MODELO = RAIZ / "signaco_abecedario_rechazo (1).tflite"
 RUTA_CONFIG = RAIZ / "config_evaluacion.json"
 RUTA_SALIDA = RAIZ / "config_objetivo.json"
+RUTA_CONFIG_SALIDA = RUTA_SALIDA   # nombre explícito para otros módulos
 
 
 def metricas_k_de_n(d, cfg, equivalencias, P_neg=None):
