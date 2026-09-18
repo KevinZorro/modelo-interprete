@@ -95,10 +95,11 @@ porque los umbrales cambiaron. Mientras falte, `config_objetivo.json` lleva
 `umbrales_provisionales: true` y cada letra `fa_reposo: null` con estado
 `pendiente_export_negativos`.
 
-Para cerrarlo: pegar `exportar_negativos_colab.py` en una celda del notebook
-después de construir `X_neg` y volver a correr con `--negativos`. Cuando el
-archivo exista, la calibración añade una tercera restricción (FA de reposo ≤ 5 %)
-y los umbrales bajos —D, H, R, T, W, Y, que hoy están en 0.01— **van a subir**.
+Para cerrarlo: correr la celda **15-bis. Exportar los negativos de reposo** del
+notebook (va justo después de la recolección de HaGRID y no reentrena nada) y
+volver a correr con `--negativos`. Cuando el archivo exista, la calibración añade
+una tercera restricción (FA de reposo ≤ 5 %) y los umbrales bajos —D, H, R, T, W,
+Y, que hoy están en 0.01— **van a subir**.
 
 ## Estas son hipótesis, no resultados
 

@@ -141,7 +141,8 @@ def cargar_negativos(ruta, ruta_modelo):
     """Landmarks de 'mano en reposo' exportados desde Colab (opcional).
 
     Espera un .npz con la matriz (n, 63) bajo la clave 'X_neg' o la primera que
-    haya. Sin este archivo no se puede medir la falsa aceptación de reposo, y el
+    haya; lo produce la celda '15-bis. Exportar los negativos de reposo' del
+    notebook. Sin este archivo no se puede medir la falsa aceptación de reposo, y el
     config lo deja explícitamente como pendiente en vez de heredar una cifra
     vieja: los umbrales cambian, así que la cifra vieja ya no aplica.
     """
