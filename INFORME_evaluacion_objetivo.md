@@ -133,38 +133,44 @@ rechazo de R puede ser un defecto del conjunto de negativos, no del modelo.
 
 ### Por qué el sondeo de colisiones no lo atrapó
 
-Las 8 clases usadas salieron de la lista `CANDIDATAS A NEGATIVO DIFÍCIL` del
-sondeo del notebook, que las aprobó correctamente según su criterio: colisiona
-una clase si **≥50 % de sus muestras** caen en una letra con **confianza ≥0.75**.
+Las 8 clases usadas son exactamente la lista `CANDIDATAS A NEGATIVO DIFÍCIL` que
+produjo el sondeo, que las aprobó según su criterio: colisiona una clase si
+**≥50 % de sus muestras** caen en una letra con **confianza ≥0.75**.
 
 | clase usada | % como letra | letra dominante | conf. |
 |---|---|---|---|
-| `two_up` | 12.5 % | **R** | 0.618 |
-| `two_up_inverted` | 22.5 % | **R** | 0.654 |
-| `peace_inverted` | 15.0 % | **R** | 0.542 |
-| `one` | 22.5 % | S | 0.597 |
-| `three2` | 20.0 % | V | 0.577 |
-| `dislike` | 20.0 % | P | 0.574 |
-| `stop_inverted` | 17.5 % | Q | 0.535 |
+| `two_up` | 30.0 % | **R** | 0.676 |
+| `stop_inverted` | 20.0 % | Q | 0.595 |
+| `three2` | 17.5 % | V | 0.530 |
+| `one` | 15.0 % | F | 0.521 |
+| `dislike` | 10.0 % | P | 0.473 |
+| `peace_inverted` | 10.0 % | G | 0.512 |
+| `palm` | 5.0 % | C | 0.481 |
+| `two_up_inverted` | 0.0 % | — | 0.563 |
 
 El criterio es **por clase y sobre el promedio**, así que una clase donde solo un
-15–22 % de las muestras son letras clarísimas pasa el filtro: el promedio la
-diluye. Pero esas muestras minoritarias siguen dentro de los negativos, y el tope
-del 5 % de FA de reposo es tan estricto que un puñado de ellas basta para mover
-el umbral.
+15–30 % de las muestras son letras claras pasa el filtro: el promedio la diluye.
+Pero esas muestras minoritarias siguen dentro de los negativos, y el tope del 5 %
+de FA de reposo es tan estricto que un puñado de ellas basta para mover el umbral.
 
-Dos cosas que el filtro por clase no vio:
+Dos cosas que el filtro por clase no puede ver:
 
-1. **Tres de las ocho clases apuntan a R** (`two_up`, `two_up_inverted`,
-   `peace_inverted`). Juntas son 150 negativos con un 12–22 % de muestras
-   R-como-R: del orden de 25 negativos empujando el umbral de R, que está en el
-   vocabulario activo. Cuadra con los 63 negativos que puntúan >0.5 como R.
+1. **`two_up` es la sospechosa principal de R**: 30 % de sus muestras como R con
+   confianza 0.676, el porcentaje más alto de las ocho. Cuadra con los 63
+   negativos que puntúan >0.5 como R y con su umbral de 0.61. R está en el
+   vocabulario activo.
 2. **Ninguna clase tiene L como letra dominante**, y aun así hay 19 negativos por
-   encima de 0.95 como L. Un subconjunto fuerte dentro de una clase "segura" es
-   invisible para un criterio que promedia.
+   encima de 0.95 como L (máximo 0.998). Un subconjunto fuerte dentro de una
+   clase "segura" es invisible para un criterio que promedia.
+
+Hay además una señal de que el filtro por clase no es estable: entre dos corridas
+del sondeo, `palm` pasó de COLISIONA a candidata, `stop` al contrario, y la letra
+dominante de `one` cambió de S a F. El sondeo entrena su propio modelo de letras
+en cada corrida, así que sus veredictos por clase se mueven; lo que no se mueve es
+qué muestra concreta es una letra.
 
 La lección para el pipeline: el filtro de negativos debe ser **por muestra**, no
-por clase. Una clase puede aportar el 80 % de negativos legítimos y el 20 % de
+por clase. Una clase puede aportar un 80 % de negativos legítimos y un 20 % de
 letras disfrazadas, y con un tope del 5 % ese 20 % decide el umbral.
 
 **Esto no se puede resolver con lo exportado:** el `.npz` guarda la lista de las 9
