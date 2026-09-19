@@ -48,5 +48,12 @@
   },
   "grupos_equivalencia": {
     "_comentario": "Vacío a propósito. El análisis de confusión simétrica y co-activación (analisis_equivalencias.py) no encontró ningún par de LETRAS que sea la misma configuración de mano. El único par simétrico fuerte es N/Ñ (co-activación 0.300 / 0.305), que no se usa como equivalencia porque aceptarlo implicaría no poder enseñar ninguna de las dos; Ñ ya está excluida por dinámica."
-  }
+  },
+  "clases_negativas_excluidas": [
+    "one",
+    "palm",
+    "three2",
+    "two_up"
+  ],
+  "_nota_clases_excluidas": "Clases de HaGRID que analisis_negativos.py identificó como letras disfrazadas: one es la pose de S (21 de 50 muestras con p>0.8), palm y three2 son L (22 y 20), two_up es R (18). No son negativos: usarlas sube el umbral de esas letras castigándolas por acertar. Se filtran al cargar los negativos, lo que requiere que el .npz traiga clase_por_muestra."
 }

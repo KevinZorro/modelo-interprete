@@ -173,14 +173,41 @@ La lección para el pipeline: el filtro de negativos debe ser **por muestra**, n
 por clase. Una clase puede aportar un 80 % de negativos legítimos y un 20 % de
 letras disfrazadas, y con un tope del 5 % ese 20 % decide el umbral.
 
-**Esto no se puede resolver con lo exportado:** el `.npz` guarda la lista de las 9
-clases pero no la clase de cada muestra, así que se ve *qué* letras están
-afectadas pero no *qué clase* las infla. La celda 15-bis del notebook ya guarda
-`clase_por_muestra`; al reexportar, `analisis_negativos.py` señala la clase
-culpable y el veredicto por clase.
+### Resuelto: cuatro clases eran letras, y se excluyen
 
-Hasta entonces, los umbrales de R, L, S, Q, K y V deben tratarse como **inflados
-al alza**, y el `no_viable` de R como **no confirmado**.
+Con el `.npz` reexportado con `clase_por_muestra`, el diagnóstico señala a los
+culpables por nombre:
+
+| clase de HaGRID | n | letra dominante | conf. media | muestras con p>0.8 | veredicto |
+|---|---|---|---|---|---|
+| `two_up` | 50 | **R** | 0.679 | 18 | letra disfrazada |
+| `palm` | 50 | **L** | 0.630 | 22 | letra disfrazada |
+| `three2` | 50 | **L** | 0.537 | 20 | letra disfrazada |
+| `one` | 50 | **S** | 0.631 | 21 | letra disfrazada |
+| `stop_inverted` | 50 | Q | 0.374 | 9 | negativo ok |
+| `peace_inverted` | 50 | K | 0.357 | 3 | negativo ok |
+| `two_up_inverted` | 50 | R | 0.420 | 0 | negativo ok |
+| `dislike` | 50 | P | 0.268 | 1 | negativo ok |
+| `no_gesture` | 400 | P | 0.019 | 0 | negativo ok |
+
+Las cuatro primeras se excluyen vía `clases_negativas_excluidas` en
+`config_evaluacion.json` (quedan 600 negativos de 800). Efecto sobre los umbrales:
+
+| letra | umbral antes | ahora | FRR antes | ahora | estado |
+|---|---|---|---|---|---|
+| S | 0.35 | **0.14** | 18.8 % | **0.0 %** | pasa a **viable** |
+| L | 0.83 | **0.54** | 12.5 % | 6.2 % | indeterminada |
+| R | 0.61 | **0.44** | 62.5 % | **37.5 %** | de `no_viable` a indeterminada |
+| Z | 0.22 | 0.14 | 12.5 % | 6.2 % | no viable (dinámica) |
+
+**El conjunto viable con confianza pasa a E, G, I, S.**
+
+**R mejora pero no se salva.** Pasa de `no_viable` a `indeterminada`, con un falso
+rechazo del 37.5 % que sigue siendo alto. `two_up` era parte del problema, no todo:
+aun sin ella, R necesita un umbral de 0.44 para no aprobar manos en reposo. Encaja
+con lo que ya decía el dataset — R tiene recall 0.84 out-of-fold y se confunde con
+S y H en ambas direcciones. R es genuinamente la letra más floja del vocabulario
+activo, y eso no lo arregla la calibración.
 
 ## CORRECCIÓN: la prueba con cámara que excluyó 8 letras era inválida
 

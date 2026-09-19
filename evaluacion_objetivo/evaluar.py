@@ -66,7 +66,8 @@ def main():
                      if not k.startswith("_")}
 
     d = mod_datos.datos_evaluacion(RUTA_CACHE, RUTA_MODELO)
-    P_neg = mod_datos.cargar_negativos(args.negativos, RUTA_MODELO)
+    P_neg = mod_datos.cargar_negativos(args.negativos, RUTA_MODELO,
+                                       cfg.get("clases_negativas_excluidas", ()))
 
     print(f"Tomas held-out: {len(d['y_toma'])} | participantes: "
           f"{len(set(d['part_toma']))} (ninguno visto en entrenamiento)")
