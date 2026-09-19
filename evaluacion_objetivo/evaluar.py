@@ -66,7 +66,8 @@ def main():
                      if not k.startswith("_")}
 
     d = mod_datos.datos_evaluacion(RUTA_CACHE, RUTA_MODELO)
-    P_neg = mod_datos.cargar_negativos(args.negativos, RUTA_MODELO)
+    P_neg = mod_datos.cargar_negativos(args.negativos, RUTA_MODELO,
+                                       cfg.get("clases_negativas_excluidas", ()))
 
     print(f"Tomas held-out: {len(d['y_toma'])} | participantes: "
           f"{len(set(d['part_toma']))} (ninguno visto en entrenamiento)")
@@ -146,9 +147,14 @@ def main():
         ) if P_neg is None else None,
         "advertencia": (
             "Las letras de 'vocabulario_propuesto' son HIPÓTESIS medidas sobre "
-            "dataset, no resultados con cámara. Ninguna puede entrar al "
-            "vocabulario de la app mientras verificada_con_camara sea false: M y N "
-            "tenían 0.92 y 0.96 en dataset y fallan en la práctica."
+            "dataset. Ninguna entra al vocabulario de la app mientras "
+            "verificada_con_camara sea false, pero por falta de una prueba "
+            "válida, no por sospecha de que el modelo falle: la prueba con "
+            "cámara que excluyó C, E, H, K, M, N resultó inválida (quien probaba "
+            "hacía mal las seña), y al repetirla ejecutándolas bien esas letras "
+            "funcionan. Hace falta una prueba con protocolo: varias personas, "
+            "imagen de referencia a la vista, orden aleatorio, y ejecuciones "
+            "incorrectas a propósito para comprobar que se rechazan."
         ),
         "letras": letras,
     }

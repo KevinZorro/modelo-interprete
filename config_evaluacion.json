@@ -1,21 +1,59 @@
 {
   "_comentario": "Parámetros de la evaluación dirigida por objetivo. Viven aquí, no en el código.",
   "presupuesto_frr": 0.05,
-  "tope_fa_cruzada": 0.20,
+  "tope_fa_cruzada": 0.2,
   "tope_fa_reposo": 0.05,
   "_nota_reposo": "Solo se aplica si se pasa --negativos con los landmarks de mano en reposo. Sin ese archivo los umbrales son PROVISIONALES: nada impide que un umbral bajo apruebe una mano quieta.",
   "criterio_viabilidad": {
-    "frr_max": 0.20,
-    "fa_cruzada_max": 0.20,
+    "frr_max": 0.2,
+    "fa_cruzada_max": 0.2,
     "_comentario": "Una letra es viable solo si el IC95 ENTERO queda por debajo de ambos. Con n=16 tomas el IC95 de un 0/16 llega a 0.194, así que frr_max por debajo de 0.20 haría indeterminada a toda letra."
   },
   "k_de_n": 2,
-  "vocabulario_activo_actual": ["A","B","D","F","G","I","J","L","O","P","Q","R","S","T","U","V","W","X","Y"],
+  "vocabulario_activo_actual": [
+    "A",
+    "B",
+    "D",
+    "F",
+    "G",
+    "I",
+    "J",
+    "L",
+    "O",
+    "P",
+    "Q",
+    "R",
+    "S",
+    "T",
+    "U",
+    "V",
+    "W",
+    "X",
+    "Y"
+  ],
   "excluidas_actuales": {
-    "dinamicas": ["Z", "NN"],
-    "por_confusion": ["C", "E", "H", "K", "M", "N"]
+    "dinamicas": [
+      "Z",
+      "NN"
+    ],
+    "por_confusion": [
+      "C",
+      "E",
+      "H",
+      "K",
+      "M",
+      "N"
+    ],
+    "_nota_por_confusion": "Exclusión heredada de una prueba con cámara que resultó INVÁLIDA: quien probaba ejecutaba mal esas señas. Al repetirla haciéndolas bien, las seis funcionan. Se mantienen aquí porque es el estado actual de la app, no porque haya evidencia de que el modelo falle con ellas; el held-out les da recall 0.94 (C), 1.00 (K), 1.00 (M), 0.87 (N), 0.81 (E), 0.88 (H). Revisar tras la prueba con protocolo."
   },
   "grupos_equivalencia": {
     "_comentario": "Vacío a propósito. El análisis de confusión simétrica y co-activación (analisis_equivalencias.py) no encontró ningún par de LETRAS que sea la misma configuración de mano. El único par simétrico fuerte es N/Ñ (co-activación 0.300 / 0.305), que no se usa como equivalencia porque aceptarlo implicaría no poder enseñar ninguna de las dos; Ñ ya está excluida por dinámica."
-  }
+  },
+  "clases_negativas_excluidas": [
+    "one",
+    "palm",
+    "three2",
+    "two_up"
+  ],
+  "_nota_clases_excluidas": "Clases de HaGRID que analisis_negativos.py identificó como letras disfrazadas: one es la pose de S (21 de 50 muestras con p>0.8), palm y three2 son L (22 y 20), two_up es R (18). No son negativos: usarlas sube el umbral de esas letras castigándolas por acertar. Se filtran al cargar los negativos, lo que requiere que el .npz traiga clase_por_muestra."
 }

@@ -137,7 +137,7 @@ def datos_evaluacion(ruta_cache, ruta_modelo):
     }
 
 
-def cargar_negativos(ruta, ruta_modelo):
+def cargar_negativos(ruta, ruta_modelo, clases_excluidas=()):
     """Landmarks de 'mano en reposo' exportados desde Colab (opcional).
 
     Espera un .npz con la matriz (n, 63) bajo la clave 'X_neg' o la primera que
@@ -152,4 +152,18 @@ def cargar_negativos(ruta, ruta_modelo):
     clave = "X_neg" if "X_neg" in d.files else d.files[0]
     X_neg = d[clave]
     assert X_neg.shape[1] == 63, f"esperaba (n, 63), llegó {X_neg.shape}"
+
+    # Las "letras disfrazadas" no son negativos: son la misma pose que una letra
+    # con otro nombre. Dejarlas dentro infla el umbral de esa letra.
+    if clases_excluidas:
+        if "clase_por_muestra" not in d.files:
+            raise SystemExit(
+                "El .npz no trae 'clase_por_muestra', así que no se pueden filtrar "
+                f"{list(clases_excluidas)}. Reexporta con la celda 15-bis del notebook."
+            )
+        clases = d["clase_por_muestra"].astype(str)
+        m = ~np.isin(clases, list(clases_excluidas))
+        print(f"Negativos: {len(X_neg)} -> {int(m.sum())} tras excluir "
+              f"{list(clases_excluidas)} (letras disfrazadas)")
+        X_neg = X_neg[m]
     return probabilidades(ruta_modelo, X_neg)
