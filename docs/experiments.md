@@ -3,6 +3,41 @@
 Memoria del proyecto: una entrada por experimento, la más reciente arriba. Incluye los
 resultados negativos. Léelo antes de proponer un experimento para no repetir.
 
+## 2026-10-01 · ANH vs AN: letras + números, 37 clases (hipótesis de resolución refutada)
+- Hipótesis: AN (escena completa 640x480) da más detalle de mano que ANH (recorte 120x120) y
+  recupera C, K, M; además añade los números.
+- Cambio respecto al baseline: sección de datos (ANH, AN, combinado) y clases (27 letras +
+  `1,4,5,6,7,8,9,10`; sin MIL/MILLON, probablemente dinámicas, sin verificar).
+- Config: red del notebook v8 · 5 folds por participante · 3 semillas (0, 42, 123) · 70
+  participantes · commit `049eec6` (resultados en Drive `resultados_colab/`).
+- Tamaño de la mano (`medir_mano`, 560 imágenes pareadas): lado mediano 66 px en ANH y 63 px
+  en AN; razón pareada AN/ANH = 1.01 (AN mayor en 58 %). En AN la mano ocupa 0.75 % de la
+  escena. **No hay más píxeles útiles en AN.** Detección 95.1 % (ANH) vs 99.3 % (AN).
+- Resultado (top-1 estricto por toma, ensamble de semillas):
+
+  | Experimento | Top-1 | Extremo a extremo | Con equivalencias |
+  |---|---|---|---|
+  | ANH, 27 letras | 89.2 % | 88.7 % | 90.5 % |
+  | ANH, letras + números (37) | **87.6 %** | 87.1 % | 89.3 % |
+  | AN, letras + números | 71.9 % | 71.6 % | 72.7 % |
+  | ANH+AN, evaluado en AN | 73.2 % | 72.9 % | 73.8 % |
+
+  Añadir números cuesta 1.6 puntos (letras 87.6 %, números 87.3 %). Equivalencias medidas:
+  N/Ñ y **1/6** (co-activación ≈ 0.27/0.28). Recall con ANH / con AN: C 0.93/0.76,
+  K 0.93/0.76, M 0.99/0.89, E 0.71/0.62, H 0.67/0.49. Las flojas siguen siendo H y E, no C/K/M.
+- Conclusión: AN no mejora nada y empeora ~16 puntos; combinar no lo arregla (+1.3). Con ANH
+  se queda. La causa NO es la resolución. Sospecha: MediaPipe ve dos manos en 68.7 % de AN
+  (2.7 % en ANH) y la extracción usa `num_hands=1`, por lo que puede elegir la mano que no
+  firma. **Sin comprobar**: ver `lsc70.diagnostico_mano`.
+- Límites: no se corrió `comparar` (bootstrap pareado); sin verificación con cámara; el
+  contraste del pipeline contra el cache viejo no se revisó.
+
+## Pendiente · ¿AN elige la mano equivocada?
+- Hipótesis: con dos manos en escena, `num_hands=1` se queda con la que no hace la seña.
+- Cómo: `python -m lsc70.diagnostico_mano --anh ... --an ... --modelo ...` (usa el vector de ANH
+  como referencia de la mano que firma; el umbral sale del ruido en imágenes de AN con una
+  sola mano). Si da una tasa alta de mano equivocada, arreglar la selección de mano y repetir AN.
+
 ## 2026-10-01 · Control: baseline ANH (27 letras) con el pipeline `lsc70`
 - Hipótesis: el pipeline nuevo reproduce el 88.8 % del notebook v8.
 - Cambio respecto al baseline: ninguno (es el control).
@@ -27,11 +62,3 @@ resultados negativos. Léelo antes de proponer un experimento para no repetir.
   `three2`=L, `one`=S) e inflaban los umbrales; excluidas.
 - Conclusión: la prueba con cámara que excluyó C, E, H, K, M, N resultó inválida (se
   ejecutaban mal las señas). Falta una prueba con protocolo (`PROTOCOLO_prueba_camara.md`).
-
-## Pendiente · ANH vs AN (hipótesis de resolución)
-- Hipótesis (a refutar): C, K, M "fallan por articulación fina que no se resuelve a 120x120"
-  y mejoran con más resolución. Ojo: en dataset C/K/M ya están en la media (0.94/0.90/0.96);
-  las flojas son H y E. Antes de entrenar, `lsc70.medir_mano` dice si AN tiene más píxeles
-  de mano que ANH.
-- Regla de decisión fijada de antemano: ver `lsc70/comparar.py`.
-- Cómo correrlo: `docs/lsc70_colab.md`.
