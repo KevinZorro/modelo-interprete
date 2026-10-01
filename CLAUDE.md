@@ -51,3 +51,6 @@ MediaPipe necesita `libEGL.so.1` del sistema (en un contenedor: `apt-get install
   Falló la prueba, no el modelo: en dataset C 0.94, K 0.90, M 0.96. Las flojas son H 0.61, E 0.67.
 - Los negativos de HaGRID `two_up`, `palm`, `three2`, `one` son las letras R, L, L, S.
 - Con n = 16 tomas por letra (held-out único) casi nada se decide; usar OOF (n = 70).
+- AN (escena completa) NO tiene más píxeles de mano que ANH (63 vs 66 px, razón pareada 1.01) y
+  rinde ~16 puntos peor (71.9 % vs 87.6 %). Con números (37 clases) ANH da 87.6 %; los números
+  cuestan 1.6 puntos. Pares equivalentes: N/Ñ y 1/6. En AN MediaPipe ve dos manos en 68.7 %.

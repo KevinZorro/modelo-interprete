@@ -50,6 +50,12 @@ la **mediana de la diferencia debe ser ≈ 0**. Si sale > 1e-2, para y avísame.
 ```
 Para comparar con el 88.8 % (solo letras), añade `--clases letras` a un experimento.
 
+## 6b. Diagnóstico: ¿qué mano elige MediaPipe en AN? — ~5 min
+```python
+!python -m lsc70.diagnostico_mano --anh {D}/LSC70ANH.zip --an {D}/LSC70AN.zip --modelo hand_landmarker.task
+```
+Imprime qué porcentaje de las escenas con dos manos termina con la mano equivocada.
+
 ## 7. Decidir
 ```python
 !python -m lsc70.comparar --base resultados/anh_ln --otros resultados/an_ln resultados/comb_ln
