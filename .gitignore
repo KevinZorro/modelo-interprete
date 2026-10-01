@@ -1,3 +1,9 @@
 __pycache__/
 *.pyc
 resultados_camara.json
+*.zip
+LSC70*/
+resultados/
+hand_landmarker.task
+.pytest_cache/
+.ruff_cache/

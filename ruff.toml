@@ -1,0 +1,10 @@
+# E702 (punto y coma) se permite en las pruebas por brevedad.
+# E741 en normalizacion.py: `l` viene de la copia TEXTUAL del notebook (vector_features),
+# que no se edita a mano para no desviarse del código con el que se entrenó el modelo.
+[lint.per-file-ignores]
+"lsc70/normalizacion.py" = ["E741"]
+"tests/*" = ["E702"]
+
+[format]
+# La copia textual del notebook no se reformatea: la prueba compara el texto exacto.
+exclude = ["lsc70/normalizacion.py"]

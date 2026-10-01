@@ -1,0 +1,10 @@
+# Pipeline lsc70 (extracción, entrenamiento, evaluación). Versiones con las que se probó.
+# evaluacion_objetivo/ NO necesita esto: solo corre el .tflite ya desplegado (requirements.txt).
+# En Colab, tensorflow y opencv ya vienen instalados; basta con `pip install mediapipe`.
+tensorflow-cpu==2.21.0
+mediapipe==1.0.1
+opencv-python-headless==5.0.0.93
+scikit-learn>=1.4
+numpy>=1.26
+pytest>=8        # pruebas: pytest tests/ -q   (-m "not slow" para saltar el entrenamiento)
+ruff>=0.6
