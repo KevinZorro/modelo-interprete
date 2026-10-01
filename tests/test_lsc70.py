@@ -256,3 +256,30 @@ def test_mediapipe_real_sin_mano_se_descarta_sin_romper(tmp_path, monkeypatch):
         r = medir_mano.medir_imagen(det, f, f.imagenes()[0], cfg)
         assert r["detectada"] is False and r["tam_original"] == [64, 48]
     det.close()
+
+
+# --- Diagnóstico de la mano ----------------------------------------------------------
+def test_diagnostico_detecta_mano_equivocada_y_calibra_el_ruido():
+    from lsc70.diagnostico_mano import evaluar_imagen, resumir
+
+    rng = np.random.default_rng(0)
+    ref = rng.normal(size=63)
+    otra = rng.normal(size=63) * 2  # otra mano: otra pose
+    # elegida correcta (ruido pequeño) vs elegida equivocada con la buena disponible
+    ok = evaluar_imagen(ref, ref + 0.01, [ref + 0.01, otra])
+    mal = evaluar_imagen(ref, otra, [otra, ref + 0.01])
+    assert ok["elegida_es_la_mejor"] and not mal["elegida_es_la_mejor"]
+
+    filas = []
+    for i in range(60):  # 60 imágenes con una sola mano: definen el ruido
+        f = evaluar_imagen(ref, ref + rng.normal(size=63) * 0.01, [ref])
+        f["clave"] = ["P", "A", i]
+        filas.append(f)
+    for i in range(10):  # 10 con dos manos, todas mal elegidas
+        f = evaluar_imagen(ref, otra, [otra, ref + 0.01])
+        f["clave"] = ["P", "B", i]
+        filas.append(f)
+    r = resumir(filas)
+    assert r["n_dos_manos"] == 10 and r["dos_manos"]["mano_equivocada_pct"] == 100.0
+    assert r["por_clase_mano_equivocada_pct"] == {"B": 100.0}
+    assert r["mano_equivocada_sobre_todas_pct"] == pytest.approx(100 * 10 / 70)
