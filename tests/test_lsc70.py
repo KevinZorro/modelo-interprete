@@ -338,3 +338,26 @@ def test_exportar_final_genera_tflite_con_paridad(tmp_path, monkeypatch):
     )
     assert cfg["paridad_tflite"]["coincide_argmax_pct"] >= 99
     assert cfg["verificado_con_camara"] is False
+
+
+def test_tabla_umbrales_sube_el_rechazo_con_el_umbral():
+    from lsc70.exportar_final import tabla_umbrales
+
+    K = 2  # clases 0 y 1, rechazo = 2
+    P_t = np.array(
+        [[0.9, 0.05, 0.05], [0.55, 0.40, 0.05], [0.1, 0.1, 0.8]]
+    )  # ok, dudosa, rechazada
+    y_t = np.array([0, 0, 0])
+    P_n = np.array(
+        [[0.95, 0.03, 0.02], [0.6, 0.3, 0.1], [0.1, 0.1, 0.8], [0.2, 0.2, 0.6]]
+    )
+    clases = np.array(["a", "a", "b", "b"])
+    filas, por_clase = tabla_umbrales(P_t, y_t, P_n, clases, K, umbrales=(0.0, 0.7))
+    sin, con = filas
+    assert (
+        sin["falso_rechazo"] == pytest.approx(1 / 3) and sin["falsa_aceptacion"] == 0.5
+    )
+    assert (
+        con["falso_rechazo"] == pytest.approx(2 / 3) and con["falsa_aceptacion"] == 0.25
+    )
+    assert por_clase == {"a": 1.0, "b": 0.0}
