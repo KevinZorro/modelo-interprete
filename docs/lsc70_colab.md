@@ -62,3 +62,18 @@ Imprime qué porcentaje de las escenas con dos manos termina con la mano equivoc
 ```
 Sube `resultados/*/metricas.json` y `configs/estructura_*.json` al repo (no los `.npz`
 con landmarks si prefieres no subirlos; las imágenes nunca).
+
+## 8. Modelo final (el único paso que produce un `.tflite`)
+Los pasos 5-6 solo producen métricas, no modelos. Para el modelo de 37 clases + `no_es_seña`:
+```python
+!pip -q install ai-edge-litert
+!python -m lsc70.exportar_final --npz landmarks_anh.npz --negativos negativos_reposo.npz \
+    --salida resultados/modelo_final
+```
+Tarda ~15-20 min (5 folds de chequeo del rechazo + entrenamiento final). Imprime el falso
+rechazo, la falsa aceptación y la paridad del `.tflite` con Keras (el argmax debe coincidir
+en ≥ 99 %). Baja `signaco_modelo_final.tflite` y `config_modelo_final.json` de
+`resultados/modelo_final/`. **No lo cargues en la app todavía**: no tiene umbrales calibrados
+ni prueba con cámara (`verificado_con_camara: false`).
+El notebook v8 sigue produciendo el modelo anterior (27 letras, sin números); no lo uses
+para esto.
