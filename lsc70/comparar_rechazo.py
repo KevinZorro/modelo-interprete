@@ -142,6 +142,13 @@ def main():
             f"{c:>6} {v['n']:>4} {100 * v['antes']:>6.0f}% {100 * v['despues']:>7.0f}% "
             f"{100 * (v['despues'] - v['antes']):>+5.0f}  {v['mejora']}/{v['empeora']}"
         )
+    print("\nPara las clases que más empeoran: ¿a dónde se va lo que ya no se acierta?")
+    for c, v in filas[:6]:
+        d = r["destino_por_clase"].get(c, {})
+        if d:
+            print(
+                f"  {c:>4}: " + ", ".join(f"{k} x{n}" for k, n in list(d.items())[:4])
+            )
     print(
         "\nCon ~70 tomas por clase un cambio de una letra de menos de ~10 puntos no se distingue "
         "del ruido; mira el patrón, no cada letra."
