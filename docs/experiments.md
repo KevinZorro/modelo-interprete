@@ -14,13 +14,24 @@ resultados negativos. Léelo antes de proponer un experimento para no repetir.
 - Causa de la paridad: la cuantización dinámica. Mismo modelo exportado en float32: diff 1e-6 y
   0 discrepancias; cuantizado: 0.75 % discrepa, todos casi-empates (margen 0.01). Sin cuantizar
   pesa 0.2 MB (7.66 MB con el detector, límite 20). Ahora float32 por defecto.
-- Corrida corta de diagnóstico (SOLO letras, 25 épocas; no es resultado): subir el umbral baja
-  la falsa aceptación pero cuesta mucho rechazo: umbral 0.7 -> FA 4.2 %, rechazo de señas
-  buenas 28.8 %; 0.9 -> FA 1.5 %, rechazo 46.8 %. Por clase de negativo, la mano en reposo
-  (`no_gesture`) es la que más se acepta como seña: 17.8 %.
-- Conclusión: el umbral por confianza no es una buena palanca (el modelo no separa bien una mano
-  relajada de un puño: A, S, E, M). Pendiente: repetir con los 37 clases completos, y medir si
-  exigir k frames consecutivos ayuda; si no, para la feria habrá que pedir sostener la seña.
+- Corrida completa con el script corregido (37 clases, float32, 200 épocas, `modelo_final_f32`):
+  paridad con Keras 100 % (diff 9.5e-7), 0.208 MB (7.67 MB con el detector). Rechazo:
+
+  | Umbral | Falso rechazo | Falsa aceptación | Top-1 con rechazo |
+  |---|---|---|---|
+  | ninguno | 0.6 % | 14.7 % | 86.3 % |
+  | 0.5 | 15.3 % | 7.3 % | 78.3 % |
+  | 0.7 | 36.7 % | 4.2 % | 61.4 % |
+  | 0.9 | 60.1 % | 2.2 % | 39.6 % |
+
+  Falsa aceptación por clase de negativo (sin umbral): `no_gesture` (mano en reposo) 19.8 %,
+  `dislike` 10.0 %, `peace_inverted` 4.0 %, `stop_inverted` 4.0 %, `two_up_inverted` 0.0 %.
+- Conclusión: el umbral por confianza es una mala palanca (con 0.7 se rechaza 1 de cada 3
+  señas buenas). La mano en reposo es lo más aceptado como seña (19.8 %), justo el fallo que más
+  rompe la confianza en una demo. Es probable (sin comprobar) que una mano relajada se parezca a un
+  puño (A, S, E, M); falta medir qué letras absorben esos falsos positivos.
+- Pendiente: más negativos de reposo, y medir si exigir k frames seguidos ayuda (los frames de
+  una mano quieta están correlacionados, así que puede no ayudar).
 - Límites: los negativos no tienen id de persona (la falsa aceptación no es independiente por
   persona); sin prueba con cámara; sin umbrales calibrados.
 
