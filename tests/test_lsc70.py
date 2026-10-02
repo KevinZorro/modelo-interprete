@@ -426,3 +426,33 @@ def test_cargar_datos_concatena_negativos_y_excluye_por_clase(tmp_path):
     )
     # 'palm' y el 'no_gesture' viejo se excluyen; queda solo el v2 (4)
     assert len(Xn) == 4 and set(cn) == {"no_gesture_v2"}
+
+
+# --- Comparación pareada de dos corridas del chequeo del rechazo -------------------------
+def test_comparar_rechazo_empareja_por_toma_y_ve_a_donde_va_lo_perdido():
+    from lsc70.comparar_rechazo import comparar
+
+    personas = [f"P{i}" for i in range(10)]
+    antes = {(p, c): c for p in personas for c in ("A", "S")}  # todo acertado
+    despues = dict(antes)
+    for p in personas[:4]:  # 4 tomas de S pasan a "no_es_seña"
+        despues[(p, "S")] = "no_es_seña"
+    despues[("P9", "A")] = "1"  # una A se confunde con el número 1
+    despues[("P9", "10")] = (
+        "10"  # clase solo del modelo nuevo: no entra en la comparación
+    )
+    r = comparar(antes, despues)
+    assert r["n_tomas"] == 20 and r["n_personas"] == 10
+    assert r["top1_antes"] == 1.0 and r["top1_despues"] == pytest.approx(15 / 20)
+    assert r["destino_de_lo_perdido"] == {"no_es_seña": 4, "1": 1}
+    assert r["por_clase"]["S"]["empeora"] == 4 and r["por_clase"]["A"]["empeora"] == 1
+    assert r["falso_rechazo_despues"] == pytest.approx(4 / 20)
+
+
+def test_registro_por_toma_usa_nombres_y_el_rechazo_como_ultima_clase():
+    from lsc70.exportar_final import registro_por_toma
+
+    P = np.array([[0.7, 0.2, 0.1], [0.1, 0.1, 0.8]])
+    reg = registro_por_toma(P, [0, 1], ["P1", "P2"], ["A", "B"])
+    assert reg[0] == {"participante": "P1", "real": "A", "pred": "A"}
+    assert reg[1] == {"participante": "P2", "real": "B", "pred": "no_es_seña"}

@@ -97,7 +97,21 @@ def tabla_umbrales(P_tomas, y_tomas, P_neg, clase_neg, K, umbrales=UMBRALES):
     return filas, por_clase
 
 
-def chequeo_rechazo(X, y, part, X_neg, clase_neg, K, seed, epocas):
+def registro_por_toma(P_tomas, y_tomas, part_tomas, clases):
+    """Una fila por toma con la clase real y la predicha (con el rechazo como última clase).
+
+    Es lo que permite comparar dos corridas toma a toma: con nombres de clase y no índices,
+    porque un modelo de 27 clases y otro de 37 numeran distinto.
+    """
+    nombres = list(clases) + ["no_es_seña"]
+    pred = P_tomas.argmax(1)
+    return [
+        {"participante": str(p), "real": clases[int(y)], "pred": nombres[int(q)]}
+        for p, y, q in zip(part_tomas, y_tomas, pred)
+    ]
+
+
+def chequeo_rechazo(X, y, part, X_neg, clase_neg, K, seed, epocas, clases):
     """Validación cruzada del rechazo. Devuelve falso rechazo, falsa aceptación y top-1."""
     from . import entrenar_evaluar as ee
 
@@ -106,7 +120,7 @@ def chequeo_rechazo(X, y, part, X_neg, clase_neg, K, seed, epocas):
     f_sena = np.array([fold_de[p] for p in part])
     rng = np.random.default_rng(seed)
     f_neg = rng.permutation(len(X_neg)) % mod_splits.N_FOLDS
-    P_t, y_t, P_n, c_n = [], [], [], []
+    P_t, y_t, p_t, P_n, c_n = [], [], [], [], []
     for fold in range(mod_splits.N_FOLDS):
         tr, te = f_sena != fold, f_sena == fold
         ntr, nte = f_neg != fold, f_neg == fold
@@ -119,9 +133,10 @@ def chequeo_rechazo(X, y, part, X_neg, clase_neg, K, seed, epocas):
         claves = {}
         for i, (p, c) in enumerate(zip(part[te], y[te])):
             claves.setdefault((p, int(c)), []).append(i)
-        for (_, c), ii in claves.items():
+        for (p, c), ii in claves.items():
             P_t.append(P[ii].mean(0))
             y_t.append(c)
+            p_t.append(p)
         P_n.append(modelo.predict(X_neg[nte], verbose=0))
         c_n.append(clase_neg[nte])
         print(f"  fold {fold + 1}/{mod_splits.N_FOLDS} listo", flush=True)
@@ -132,6 +147,7 @@ def chequeo_rechazo(X, y, part, X_neg, clase_neg, K, seed, epocas):
         "tomas": len(y_t),
         "por_umbral": filas,
         "falsa_aceptacion_por_clase_negativa": por_clase,
+        "registro_tomas": registro_por_toma(np.array(P_t), y_t, p_t, clases),
     }
 
 
@@ -202,6 +218,11 @@ def main():
     ap.add_argument(
         "--sin-chequeo", action="store_true", help="salta la validación cruzada"
     )
+    ap.add_argument(
+        "--solo-chequeo",
+        action="store_true",
+        help="solo la validación cruzada: guarda chequeo_rechazo.json y no entrena ni exporta",
+    )
     a = ap.parse_args()
 
     presentes = set(np.load(a.npz, allow_pickle=True)["y"].astype(str))
@@ -218,7 +239,9 @@ def main():
     chequeo = None
     if not a.sin_chequeo:
         print("\n=== 1. CHEQUEO DEL RECHAZO (5 folds por participante) ===")
-        chequeo = chequeo_rechazo(X, y, part, X_neg, clase_neg, K, a.semilla, a.epocas)
+        chequeo = chequeo_rechazo(
+            X, y, part, X_neg, clase_neg, K, a.semilla, a.epocas, clases
+        )
         print(
             f"{'umbral':>7} {'falso rechazo':>14} {'falsa aceptación':>17} {'top-1 con rechazo':>18}"
         )
@@ -233,6 +256,23 @@ def main():
             key=lambda kv: -kv[1],
         ):
             print(f"  {c:>16} {100 * v:>5.1f}%")
+        carpeta = Path(a.salida)
+        carpeta.mkdir(parents=True, exist_ok=True)
+        (carpeta / "chequeo_rechazo.json").write_text(
+            json.dumps(
+                {
+                    "clases": clases,
+                    "chequeo": chequeo,
+                    "negativos": [str(r) for r in a.negativos],
+                },
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        print(f"Chequeo guardado en {carpeta}/chequeo_rechazo.json")
+        if a.solo_chequeo:
+            return
 
     print("\n=== 2. ENTRENAMIENTO FINAL (70 participantes) ===")
     import tensorflow as tf

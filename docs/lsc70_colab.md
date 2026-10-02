@@ -78,3 +78,17 @@ restaura la receta del notebook, que pierde paridad). Baja `signaco_modelo_final
 ni prueba con cámara (`verificado_con_camara: false`).
 El notebook v8 sigue produciendo el modelo anterior (27 letras, sin números); no lo uses
 para esto.
+
+## 9. Comparar configuraciones del rechazo (antes vs ahora)
+Tres corridas solo de chequeo (no entrenan el modelo final; ~8 min c/u), mismos folds y semilla:
+A = 27 letras + negativos viejos · D = 27 letras + 2200 negativos · C = 37 clases + 2200 negativos.
+```python
+!python -m lsc70.exportar_final --solo-chequeo --clases letras --npz LANDMARKS --negativos negativos_reposo.npz --salida OUT/A
+!python -m lsc70.exportar_final --solo-chequeo --clases letras --npz LANDMARKS --negativos negativos_reposo.npz NEG_V2 --excluir-negativos one palm three2 two_up no_gesture --salida OUT/D
+!python -m lsc70.exportar_final --solo-chequeo --npz LANDMARKS --negativos negativos_reposo.npz NEG_V2 --excluir-negativos one palm three2 two_up no_gesture --salida OUT/C
+!python -m lsc70.comparar_rechazo --antes OUT/A/chequeo_rechazo.json --despues OUT/C/chequeo_rechazo.json
+```
+A->C es el cambio total; A->D aísla el efecto de los negativos; D->C el de los números. No se
+evalúa el .tflite desplegado: se entrenó con 55 personas y el nuevo con 70, así que no hay
+persona con la que probar el nuevo que no haya visto. Referencia de ruido: dos corridas con
+distinta semilla difieren ±7-10 puntos por letra sin que cambie nada real.
