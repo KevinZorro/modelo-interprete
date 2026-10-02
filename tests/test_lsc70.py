@@ -361,3 +361,68 @@ def test_tabla_umbrales_sube_el_rechazo_con_el_umbral():
         con["falso_rechazo"] == pytest.approx(2 / 3) and con["falsa_aceptacion"] == 0.25
     )
     assert por_clase == {"a": 1.0, "b": 0.0}
+
+
+# --- Extracción de negativos y carga de varios archivos ----------------------------------
+def test_extraer_negativos_desde_carpeta_respeta_el_limite(tmp_path, monkeypatch):
+    from lsc70 import extraer_negativos
+
+    carpeta = tmp_path / "no_gesture"
+    carpeta.mkdir()
+    for i in range(10):
+        cv2.imwrite(str(carpeta / f"{i}.jpg"), np.zeros((20, 20, 3), np.uint8))
+    (carpeta / "nota.txt").write_text("no es imagen")
+    vistas = {"n": 0}
+
+    def falso(detector, img):  # las imágenes pares "tienen mano", las impares no
+        vistas["n"] += 1
+        return (
+            (np.full(63, vistas["n"], np.float32), None, None, False)
+            if vistas["n"] % 2 == 0
+            else None
+        )
+
+    monkeypatch.setattr(extraer_negativos, "landmarks_de_imagen", falso)
+    X, leidas = extraer_negativos.extraer(
+        extraer_negativos.imagenes_carpeta(carpeta),
+        None,
+        limite=3,
+        etiqueta="x",
+        reporte=0,
+    )
+    assert X.shape == (3, 63) and leidas == 6  # paró al llegar a 3 con mano
+    # sin ninguna mano: forma (0, 63), no un error de dimensiones
+    monkeypatch.setattr(extraer_negativos, "landmarks_de_imagen", lambda d, i: None)
+    X0, _ = extraer_negativos.extraer(
+        extraer_negativos.imagenes_carpeta(carpeta), None, 3, "x", 0
+    )
+    assert X0.shape == (0, 63)
+
+
+def test_cargar_datos_concatena_negativos_y_excluye_por_clase(tmp_path):
+    from lsc70.exportar_final import cargar_datos
+
+    np.savez(
+        tmp_path / "l.npz",
+        X=np.zeros((4, 63), np.float32),
+        y=np.array(["A"] * 4),
+        participante=np.array(["P1", "P1", "P2", "P2"]),
+    )
+    np.savez(
+        tmp_path / "a.npz",
+        X_neg=np.zeros((5, 63), np.float32),
+        clase_por_muestra=np.array(["no_gesture"] * 3 + ["palm"] * 2),
+    )
+    np.savez(
+        tmp_path / "b.npz",
+        X_neg=np.ones((4, 63), np.float32),
+        clase_por_muestra=np.array(["no_gesture_v2"] * 4),
+    )
+    X, y, part, Xn, cn = cargar_datos(
+        tmp_path / "l.npz",
+        [tmp_path / "a.npz", tmp_path / "b.npz"],
+        ["A"],
+        ["palm", "no_gesture"],
+    )
+    # 'palm' y el 'no_gesture' viejo se excluyen; queda solo el v2 (4)
+    assert len(Xn) == 4 and set(cn) == {"no_gesture_v2"}

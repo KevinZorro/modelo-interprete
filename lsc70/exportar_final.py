@@ -39,6 +39,7 @@ LIMITE_MB = 20  # RNF-03
 
 
 def cargar_datos(npz, negativos, clases, excluidas):
+    """`negativos` puede ser una ruta o una lista de rutas (se concatenan)."""
     d = np.load(npz, allow_pickle=True)
     m = np.isin(d["y"].astype(str), clases)
     idx = {c: i for i, c in enumerate(clases)}
@@ -46,16 +47,19 @@ def cargar_datos(npz, negativos, clases, excluidas):
     y = np.array([idx[c] for c in d["y"].astype(str)[m]])
     part = d["participante"].astype(str)[m]
 
-    n = np.load(negativos, allow_pickle=True)
-    if "clase_por_muestra" not in n.files:
-        raise SystemExit(
-            "El .npz de negativos no trae clase_por_muestra; no se pueden filtrar."
+    rutas = [negativos] if isinstance(negativos, (str, Path)) else list(negativos)
+    Xs, cs = [], []
+    for r in rutas:
+        n = np.load(r, allow_pickle=True)
+        if "clase_por_muestra" not in n.files:
+            raise SystemExit(f"{r} no trae clase_por_muestra; no se pueden filtrar.")
+        quedan = ~np.isin(n["clase_por_muestra"].astype(str), excluidas)
+        Xs.append(n["X_neg"][quedan])
+        cs.append(n["clase_por_muestra"].astype(str)[quedan])
+        print(
+            f"Negativos de {Path(r).name}: {len(n['X_neg'])} -> {int(quedan.sum())} tras excluir {excluidas}"
         )
-    quedan = ~np.isin(n["clase_por_muestra"].astype(str), excluidas)
-    X_neg = n["X_neg"][quedan]
-    clase_neg = n["clase_por_muestra"].astype(str)[quedan]
-    print(f"Negativos: {len(n['X_neg'])} -> {len(X_neg)} tras excluir {excluidas}")
-    return X, y, part, X_neg, clase_neg
+    return X, y, part, np.concatenate(Xs), np.concatenate(cs)
 
 
 UMBRALES = (0.0, 0.5, 0.6, 0.7, 0.8, 0.9)
@@ -178,7 +182,10 @@ def main():
     )
     ap.add_argument("--npz", required=True, help="landmarks_anh.npz")
     ap.add_argument(
-        "--negativos", required=True, help="negativos_reposo.npz con clase_por_muestra"
+        "--negativos",
+        nargs="+",
+        required=True,
+        help="uno o varios .npz con clase_por_muestra",
     )
     ap.add_argument("--salida", default="resultados/modelo_final")
     ap.add_argument(
@@ -271,9 +278,10 @@ def main():
             "tensorflow": tf.__version__,
             "datos_sha256": {
                 "landmarks": hashlib.sha256(Path(a.npz).read_bytes()).hexdigest()[:16],
-                "negativos": hashlib.sha256(Path(a.negativos).read_bytes()).hexdigest()[
-                    :16
-                ],
+                "negativos": {
+                    Path(r).name: hashlib.sha256(Path(r).read_bytes()).hexdigest()[:16]
+                    for r in a.negativos
+                },
             },
         },
     }
