@@ -3,6 +3,27 @@
 Memoria del proyecto: una entrada por experimento, la más reciente arriba. Incluye los
 resultados negativos. Léelo antes de proponer un experimento para no repetir.
 
+## 2026-10-02 · Modelo final 37 clases + `no_es_seña` (ANH, 600 negativos limpios)
+- Hipótesis: un modelo con números y clase de rechazo se puede exportar y desplegar.
+- Cambio: `lsc70.exportar_final` (5 folds por participante para medir el rechazo, entrenamiento
+  final con los 70, exportación a .tflite). Negativos de HaGRID sin `one/palm/three2/two_up`.
+- Resultado (Colab, 200 épocas, argmax de 38 clases, sin umbral): falso rechazo 0.6 %,
+  **falsa aceptación 14.7 % por frame**, top-1 por toma contando el rechazo como fallo 86.3 %
+  (sin rechazo era 87.6 %). El .tflite cuantizado NO coincidía con Keras: argmax 98.4 %, diff
+  máx 0.12. Pesaba 0.060 MB.
+- Causa de la paridad: la cuantización dinámica. Mismo modelo exportado en float32: diff 1e-6 y
+  0 discrepancias; cuantizado: 0.75 % discrepa, todos casi-empates (margen 0.01). Sin cuantizar
+  pesa 0.2 MB (7.66 MB con el detector, límite 20). Ahora float32 por defecto.
+- Corrida corta de diagnóstico (SOLO letras, 25 épocas; no es resultado): subir el umbral baja
+  la falsa aceptación pero cuesta mucho rechazo: umbral 0.7 -> FA 4.2 %, rechazo de señas
+  buenas 28.8 %; 0.9 -> FA 1.5 %, rechazo 46.8 %. Por clase de negativo, la mano en reposo
+  (`no_gesture`) es la que más se acepta como seña: 17.8 %.
+- Conclusión: el umbral por confianza no es una buena palanca (el modelo no separa bien una mano
+  relajada de un puño: A, S, E, M). Pendiente: repetir con los 37 clases completos, y medir si
+  exigir k frames consecutivos ayuda; si no, para la feria habrá que pedir sostener la seña.
+- Límites: los negativos no tienen id de persona (la falsa aceptación no es independiente por
+  persona); sin prueba con cámara; sin umbrales calibrados.
+
 ## 2026-10-01 · ANH vs AN: letras + números, 37 clases (hipótesis de resolución refutada)
 - Hipótesis: AN (escena completa 640x480) da más detalle de mano que ANH (recorte 120x120) y
   recupera C, K, M; además añade los números.

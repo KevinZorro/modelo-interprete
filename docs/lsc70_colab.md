@@ -70,9 +70,10 @@ Los pasos 5-6 solo producen métricas, no modelos. Para el modelo de 37 clases +
 !python -m lsc70.exportar_final --npz landmarks_anh.npz --negativos negativos_reposo.npz \
     --salida resultados/modelo_final
 ```
-Tarda ~15-20 min (5 folds de chequeo del rechazo + entrenamiento final). Imprime el falso
-rechazo, la falsa aceptación y la paridad del `.tflite` con Keras (el argmax debe coincidir
-en ≥ 99 %). Baja `signaco_modelo_final.tflite` y `config_modelo_final.json` de
+Tarda ~15-20 min (5 folds de chequeo del rechazo + entrenamiento final). Imprime una tabla de
+falso rechazo / falsa aceptación según el umbral, la falsa aceptación por clase de negativo, y
+la paridad del `.tflite` con Keras (debe ser ≈ 100 %; se exporta en float32, `--cuantizar`
+restaura la receta del notebook, que pierde paridad). Baja `signaco_modelo_final.tflite` y `config_modelo_final.json` de
 `resultados/modelo_final/`. **No lo cargues en la app todavía**: no tiene umbrales calibrados
 ni prueba con cámara (`verificado_con_camara: false`).
 El notebook v8 sigue produciendo el modelo anterior (27 letras, sin números); no lo uses
