@@ -66,9 +66,11 @@ def comparar(antes, despues):
         }
     # A dónde van las tomas de letras que el modelo nuevo ya no acierta
     destinos = defaultdict(int)
+    destino_por_clase = defaultdict(lambda: defaultdict(int))
     for k in comunes:
         if antes[k] == k[1] and despues[k] != k[1]:
             destinos[despues[k]] += 1
+            destino_por_clase[k[1]][despues[k]] += 1
     return {
         "n_tomas": len(comunes),
         "n_personas": len(set(pers)),
@@ -80,6 +82,10 @@ def comparar(antes, despues):
         "falso_rechazo_despues": float(rech_d.mean()),
         "por_clase": por_clase,
         "destino_de_lo_perdido": dict(sorted(destinos.items(), key=lambda kv: -kv[1])),
+        "destino_por_clase": {
+            c: dict(sorted(d.items(), key=lambda kv: -kv[1]))
+            for c, d in destino_por_clase.items()
+        },
     }
 
 

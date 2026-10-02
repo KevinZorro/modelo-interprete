@@ -101,7 +101,7 @@ def registro_por_toma(P_tomas, y_tomas, part_tomas, clases):
     """Una fila por toma con la clase real y la predicha (con el rechazo como última clase).
 
     Es lo que permite comparar dos corridas toma a toma: con nombres de clase y no índices,
-    porque un modelo de 27 clases y otro de 37 numeran distinto.
+    porque un modelo de 27 clases y otro de 35 numeran distinto.
     """
     nombres = list(clases) + ["no_es_seña"]
     pred = P_tomas.argmax(1)

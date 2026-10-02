@@ -445,6 +445,7 @@ def test_comparar_rechazo_empareja_por_toma_y_ve_a_donde_va_lo_perdido():
     assert r["n_tomas"] == 20 and r["n_personas"] == 10
     assert r["top1_antes"] == 1.0 and r["top1_despues"] == pytest.approx(15 / 20)
     assert r["destino_de_lo_perdido"] == {"no_es_seña": 4, "1": 1}
+    assert r["destino_por_clase"] == {"S": {"no_es_seña": 4}, "A": {"1": 1}}
     assert r["por_clase"]["S"]["empeora"] == 4 and r["por_clase"]["A"]["empeora"] == 1
     assert r["falso_rechazo_despues"] == pytest.approx(4 / 20)
 

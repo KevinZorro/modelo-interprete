@@ -64,7 +64,7 @@ Sube `resultados/*/metricas.json` y `configs/estructura_*.json` al repo (no los 
 con landmarks si prefieres no subirlos; las imágenes nunca).
 
 ## 8. Modelo final (el único paso que produce un `.tflite`)
-Los pasos 5-6 solo producen métricas, no modelos. Para el modelo de 37 clases + `no_es_seña`:
+Los pasos 5-6 solo producen métricas, no modelos. Para el modelo de 35 clases (27 letras + 8 números) + `no_es_seña`:
 ```python
 !pip -q install ai-edge-litert
 !python -m lsc70.exportar_final --npz landmarks_anh.npz --negativos negativos_reposo.npz \
@@ -81,7 +81,7 @@ para esto.
 
 ## 9. Comparar configuraciones del rechazo (antes vs ahora)
 Tres corridas solo de chequeo (no entrenan el modelo final; ~8 min c/u), mismos folds y semilla:
-A = 27 letras + negativos viejos · D = 27 letras + 2200 negativos · C = 37 clases + 2200 negativos.
+A = 27 letras + negativos viejos · D = 27 letras + 2200 negativos · C = 35 clases + 2200 negativos.
 ```python
 !python -m lsc70.exportar_final --solo-chequeo --clases letras --npz LANDMARKS --negativos negativos_reposo.npz --salida OUT/A
 !python -m lsc70.exportar_final --solo-chequeo --clases letras --npz LANDMARKS --negativos negativos_reposo.npz NEG_V2 --excluir-negativos one palm three2 two_up no_gesture --salida OUT/D

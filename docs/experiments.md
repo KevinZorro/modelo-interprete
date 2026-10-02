@@ -3,13 +3,44 @@
 Memoria del proyecto: una entrada por experimento, la más reciente arriba. Incluye los
 resultados negativos. Léelo antes de proponer un experimento para no repetir.
 
+## 2026-10-03 · Antes vs ahora, separando negativos y números (chequeo con los mismos folds)
+- Hipótesis: el modelo actual cambió respecto al desplegado por dos causas: 5x negativos de reposo y
+  8 números. ¿Cuánto aporta cada una?
+- Diseño: tres corridas de `exportar_final --solo-chequeo` (5 folds por participante, semilla 42,
+  200 épocas) comparadas con `comparar_rechazo` (tomas pareadas, bootstrap por persona).
+  No se evaluó el .tflite desplegado: se entrenó con 55 personas y el actual con 70.
+  A = 27 letras + 600 negativos (antes) · D = 27 letras + 2200 · C = 35 clases + 2200 (ahora).
+  Corrección: las corridas anteriores hablaban de "37 clases"; eran 35 (27 + 8 números; MIL y
+  MILLON excluidos, 2 y 3 no existen).
+- Resultado (argmax, sin umbral):
+
+  | | Falso rechazo | Falsa aceptación | Top-1 con rechazo |
+  |---|---|---|---|
+  | A: 27 letras, 600 neg. | 0.9 % | 13.7 % | 88.4 % |
+  | D: 27 letras, 2200 neg. | 1.7 % | 5.1 % | 88.7 % |
+  | C: 35 clases, 2200 neg. | 1.6 % | 5.8 % | 85.9 % |
+
+  Negativos (A->D): top-1 +0.2 [-0.9, +1.2] sin diferencia clara; falso rechazo +0.8 [+0.4, +1.3];
+  la falsa aceptación baja de 13.7 % a 5.1 % y `no_gesture` de 18.0 % a 5.1-6.2 %.
+  Números (D->C): top-1 **-2.8 [-3.8, -1.7]** (diferencia clara); falso rechazo +0.3 [-0.2, +0.7].
+  Total (A->C): top-1 -2.6 [-3.7, -1.4].
+- Dónde se pierde con los números (D->C): letras que ya no se aciertan van a `C` (10), `no_es_seña`
+  (9), `10` (8), `4` (7), `S` (6), `N` (5). Por letra: E -16, B -13, H -11, Z -9, W -6, S -6.
+  B -13 con 9 tomas perdidas y el `4` absorbiendo 7 sugiere que el 4 es la misma pose que B
+  (HaGRID `four` ya salía como B); falta confirmar con el destino por clase.
+- Conclusión: los negativos son una mejora clara y casi gratis; los números cuestan ~3 puntos de
+  top-1, concentrados en letras que comparten pose con un número. Ruido de referencia: dos
+  semillas difieren ±7-10 puntos por letra, así que solo cuentan los patrones y el top-1 total.
+- Límites: una semilla; negativos de HaGRID sin id de persona (falsa aceptación optimista);
+  sin cámara.
+
 ## 2026-10-02 · Más negativos de reposo: HaGRID `no_gesture` x5 (400 -> 2000)
 - Hipótesis: la mano en reposo se acepta como seña (19.8 %) por falta de ejemplos negativos.
 - Cambio respecto al modelo anterior: negativos `no_gesture_v2` (2000, misma fuente HaGRID, extraídos
   con `lsc70.extraer_negativos`) + los 200 gestos limpios; se excluye el `no_gesture` viejo para
   no duplicar. Negativos 2200 (≈5.5x una clase media). Descarte por no-detección 14.7 %
   (2344 leídas, 2000 con mano; el límite fue el tope, la fuente NO se agotó).
-- Config: mismo modelo y datos de señas (37 clases, 14115 frames), float32, 200 épocas,
+- Config: mismo modelo y datos de señas (35 clases, 14115 frames), float32, 200 épocas,
   `modelo_final_v2` en Drive, commit `0de3715`.
 - Resultado (argmax, sin umbral): falso rechazo 1.6 % (antes 0.6 %), **falsa aceptación 5.8 %**
   (antes 14.7 %), top-1 con rechazo 85.9 % (antes 86.3 %). Por clase de negativo: `no_gesture`
@@ -26,7 +57,7 @@ resultados negativos. Léelo antes de proponer un experimento para no repetir.
   Sin prueba con cámara. Siguiente: negativos grabados con la cámara de la app y de personas
   distintas, que dan una validación independiente.
 
-## 2026-10-02 · Modelo final 37 clases + `no_es_seña` (ANH, 600 negativos limpios)
+## 2026-10-02 · Modelo final 35 clases + `no_es_seña` (ANH, 600 negativos limpios)
 - Hipótesis: un modelo con números y clase de rechazo se puede exportar y desplegar.
 - Cambio: `lsc70.exportar_final` (5 folds por participante para medir el rechazo, entrenamiento
   final con los 70, exportación a .tflite). Negativos de HaGRID sin `one/palm/three2/two_up`.
@@ -37,7 +68,7 @@ resultados negativos. Léelo antes de proponer un experimento para no repetir.
 - Causa de la paridad: la cuantización dinámica. Mismo modelo exportado en float32: diff 1e-6 y
   0 discrepancias; cuantizado: 0.75 % discrepa, todos casi-empates (margen 0.01). Sin cuantizar
   pesa 0.2 MB (7.66 MB con el detector, límite 20). Ahora float32 por defecto.
-- Corrida completa con el script corregido (37 clases, float32, 200 épocas, `modelo_final_f32`):
+- Corrida completa con el script corregido (35 clases, float32, 200 épocas, `modelo_final_f32`):
   paridad con Keras 100 % (diff 9.5e-7), 0.208 MB (7.67 MB con el detector). Rechazo:
 
   | Umbral | Falso rechazo | Falsa aceptación | Top-1 con rechazo |
@@ -58,7 +89,7 @@ resultados negativos. Léelo antes de proponer un experimento para no repetir.
 - Límites: los negativos no tienen id de persona (la falsa aceptación no es independiente por
   persona); sin prueba con cámara; sin umbrales calibrados.
 
-## 2026-10-01 · ANH vs AN: letras + números, 37 clases (hipótesis de resolución refutada)
+## 2026-10-01 · ANH vs AN: letras + números, 35 clases (hipótesis de resolución refutada)
 - Hipótesis: AN (escena completa 640x480) da más detalle de mano que ANH (recorte 120x120) y
   recupera C, K, M; además añade los números.
 - Cambio respecto al baseline: sección de datos (ANH, AN, combinado) y clases (27 letras +
@@ -73,7 +104,7 @@ resultados negativos. Léelo antes de proponer un experimento para no repetir.
   | Experimento | Top-1 | Extremo a extremo | Con equivalencias |
   |---|---|---|---|
   | ANH, 27 letras | 89.2 % | 88.7 % | 90.5 % |
-  | ANH, letras + números (37) | **87.6 %** | 87.1 % | 89.3 % |
+  | ANH, letras + números (35) | **87.6 %** | 87.1 % | 89.3 % |
   | AN, letras + números | 71.9 % | 71.6 % | 72.7 % |
   | ANH+AN, evaluado en AN | 73.2 % | 72.9 % | 73.8 % |
 
