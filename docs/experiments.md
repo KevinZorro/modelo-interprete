@@ -3,6 +3,29 @@
 Memoria del proyecto: una entrada por experimento, la más reciente arriba. Incluye los
 resultados negativos. Léelo antes de proponer un experimento para no repetir.
 
+## 2026-10-02 · Más negativos de reposo: HaGRID `no_gesture` x5 (400 -> 2000)
+- Hipótesis: la mano en reposo se acepta como seña (19.8 %) por falta de ejemplos negativos.
+- Cambio respecto al modelo anterior: negativos `no_gesture_v2` (2000, misma fuente HaGRID, extraídos
+  con `lsc70.extraer_negativos`) + los 200 gestos limpios; se excluye el `no_gesture` viejo para
+  no duplicar. Negativos 2200 (≈5.5x una clase media). Descarte por no-detección 14.7 %
+  (2344 leídas, 2000 con mano; el límite fue el tope, la fuente NO se agotó).
+- Config: mismo modelo y datos de señas (37 clases, 14115 frames), float32, 200 épocas,
+  `modelo_final_v2` en Drive, commit `0de3715`.
+- Resultado (argmax, sin umbral): falso rechazo 1.6 % (antes 0.6 %), **falsa aceptación 5.8 %**
+  (antes 14.7 %), top-1 con rechazo 85.9 % (antes 86.3 %). Por clase de negativo: `no_gesture`
+  6.2 % (antes 19.8 %), `dislike` 4.0 % (10.0 %), `peace_inverted` 2.0 %, `stop_inverted` 2.0 %,
+  `two_up_inverted` 0.0 %. Paridad float32 100 %, 0.208 MB.
+  Con umbral el rechazo de señas buenas sigue siendo caro (0.5 -> 14.6 %; 0.7 -> 36.4 %).
+- Conclusión: más negativos sí ayuda: la falsa aceptación baja ~60 % y cuesta ~1 punto de falso
+  rechazo. Mejor punto de operación: argmax sin umbral.
+- Límites (importantes): los negativos de HaGRID no tienen id de persona y el chequeo los reparte
+  al azar, así que frames de la misma persona caen en train y test; la falsa aceptación es
+  OPTIMISTA y más negativos de la misma fuente la inflan más. Las comparaciones entre corridas
+  también mezclan composiciones distintas de negativos. `dislike` y los otros gestos tienen
+  n = 50 (un solo acierto cambia 2 puntos). No se midió el costo por letra (A, S, E, M).
+  Sin prueba con cámara. Siguiente: negativos grabados con la cámara de la app y de personas
+  distintas, que dan una validación independiente.
+
 ## 2026-10-02 · Modelo final 37 clases + `no_es_seña` (ANH, 600 negativos limpios)
 - Hipótesis: un modelo con números y clase de rechazo se puede exportar y desplegar.
 - Cambio: `lsc70.exportar_final` (5 folds por participante para medir el rechazo, entrenamiento
