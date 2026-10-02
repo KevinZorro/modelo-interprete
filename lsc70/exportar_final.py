@@ -53,11 +53,47 @@ def cargar_datos(npz, negativos, clases, excluidas):
         )
     quedan = ~np.isin(n["clase_por_muestra"].astype(str), excluidas)
     X_neg = n["X_neg"][quedan]
+    clase_neg = n["clase_por_muestra"].astype(str)[quedan]
     print(f"Negativos: {len(n['X_neg'])} -> {len(X_neg)} tras excluir {excluidas}")
-    return X, y, part, X_neg
+    return X, y, part, X_neg, clase_neg
 
 
-def chequeo_rechazo(X, y, part, X_neg, K, seed, epocas):
+UMBRALES = (0.0, 0.5, 0.6, 0.7, 0.8, 0.9)
+
+
+def tabla_umbrales(P_tomas, y_tomas, P_neg, clase_neg, K, umbrales=UMBRALES):
+    """Falso rechazo, falsa aceptación y top-1 según el umbral sobre la confianza.
+
+    Una seña se acepta si la clase ganadora NO es el rechazo y la mejor probabilidad entre
+    las clases de seña llega al umbral (umbral 0 = solo el argmax, sin umbral). Subir el
+    umbral baja la falsa aceptación a costa de rechazar señas bien hechas: es la palanca
+    que decide si el sistema se calla cuando nadie hace una seña. La falsa aceptación por
+    clase de negativo (a umbral 0) dice si el problema son las manos en reposo o los gestos.
+    """
+    conf_t = P_tomas[:, :K].max(1)
+    ok_clase = P_tomas[:, :K].argmax(1) == y_tomas
+    rechaza_t = P_tomas.argmax(1) == K
+    conf_n = P_neg[:, :K].max(1)
+    acepta_n = P_neg.argmax(1) != K
+    filas = []
+    for u in umbrales:
+        rech = rechaza_t | (conf_t < u)
+        acep = acepta_n & (conf_n >= u)
+        filas.append(
+            {
+                "umbral": u,
+                "falso_rechazo": float(rech.mean()),
+                "falsa_aceptacion": float(acep.mean()),
+                "top1_con_rechazo": float((~rech & ok_clase).mean()),
+            }
+        )
+    por_clase = {
+        c: float(acepta_n[clase_neg == c].mean()) for c in sorted(set(clase_neg))
+    }
+    return filas, por_clase
+
+
+def chequeo_rechazo(X, y, part, X_neg, clase_neg, K, seed, epocas):
     """Validación cruzada del rechazo. Devuelve falso rechazo, falsa aceptación y top-1."""
     from . import entrenar_evaluar as ee
 
@@ -66,7 +102,7 @@ def chequeo_rechazo(X, y, part, X_neg, K, seed, epocas):
     f_sena = np.array([fold_de[p] for p in part])
     rng = np.random.default_rng(seed)
     f_neg = rng.permutation(len(X_neg)) % mod_splits.N_FOLDS
-    rechazadas = total_tomas = aceptadas_neg = ok_top1 = 0
+    P_t, y_t, P_n, c_n = [], [], [], []
     for fold in range(mod_splits.N_FOLDS):
         tr, te = f_sena != fold, f_sena == fold
         ntr, nte = f_neg != fold, f_neg == fold
@@ -80,31 +116,36 @@ def chequeo_rechazo(X, y, part, X_neg, K, seed, epocas):
         for i, (p, c) in enumerate(zip(part[te], y[te])):
             claves.setdefault((p, int(c)), []).append(i)
         for (_, c), ii in claves.items():
-            pred = int(P[ii].mean(0).argmax())
-            total_tomas += 1
-            rechazadas += pred == K
-            ok_top1 += pred == c
-        aceptadas_neg += int(
-            (modelo.predict(X_neg[nte], verbose=0).argmax(1) != K).sum()
-        )
+            P_t.append(P[ii].mean(0))
+            y_t.append(c)
+        P_n.append(modelo.predict(X_neg[nte], verbose=0))
+        c_n.append(clase_neg[nte])
         print(f"  fold {fold + 1}/{mod_splits.N_FOLDS} listo", flush=True)
+    filas, por_clase = tabla_umbrales(
+        np.array(P_t), np.array(y_t), np.concatenate(P_n), np.concatenate(c_n), K
+    )
     return {
-        "tomas": total_tomas,
-        "falso_rechazo": rechazadas / total_tomas,
-        "falsa_aceptacion_frames": aceptadas_neg / len(X_neg),
-        "top1_con_rechazo": ok_top1 / total_tomas,
+        "tomas": len(y_t),
+        "por_umbral": filas,
+        "falsa_aceptacion_por_clase_negativa": por_clase,
     }
 
 
-def exportar_tflite(modelo, carpeta, X_ref):
-    """Convierte con la misma receta del notebook y verifica la paridad con Keras."""
+def exportar_tflite(modelo, carpeta, X_ref, cuantizar=False):
+    """Convierte a .tflite y verifica la paridad con Keras.
+
+    Por defecto SIN cuantizar: el modelo pesa ~0.2 MB, irrelevante frente al límite de 20 MB,
+    y la cuantización dinámica (Optimize.DEFAULT, la receta del notebook) hacía discrepar el
+    argmax en ~1 % de las muestras, todas casi-empates. Sin cuantizar la diferencia es ~1e-6.
+    """
     import tensorflow as tf
 
     carpeta = Path(carpeta)
     sm = carpeta / "saved_model"
     modelo.export(str(sm))
     conv = tf.lite.TFLiteConverter.from_saved_model(str(sm))
-    conv.optimizations = [tf.lite.Optimize.DEFAULT]
+    if cuantizar:
+        conv.optimizations = [tf.lite.Optimize.DEFAULT]
     ruta = carpeta / "signaco_modelo_final.tflite"
     ruta.write_bytes(conv.convert())
 
@@ -147,6 +188,11 @@ def main():
     ap.add_argument("--semilla", type=int, default=42)
     ap.add_argument("--epocas", type=int, default=200)
     ap.add_argument(
+        "--cuantizar",
+        action="store_true",
+        help="receta del notebook; pierde paridad con Keras",
+    )
+    ap.add_argument(
         "--sin-chequeo", action="store_true", help="salta la validación cruzada"
     )
     a = ap.parse_args()
@@ -155,7 +201,9 @@ def main():
     clases = elegir_clases(a.clases, presentes)
     K = len(clases)
     print(f"Clases ({K}) + no_es_seña (índice {K}): {clases}")
-    X, y, part, X_neg = cargar_datos(a.npz, a.negativos, clases, a.excluir_negativos)
+    X, y, part, X_neg, clase_neg = cargar_datos(
+        a.npz, a.negativos, clases, a.excluir_negativos
+    )
     print(
         f"Frames de seña: {len(X)} | negativos: {len(X_neg)} (≈{len(X_neg) / (len(X) / K):.1f}x una clase media)"
     )
@@ -163,12 +211,21 @@ def main():
     chequeo = None
     if not a.sin_chequeo:
         print("\n=== 1. CHEQUEO DEL RECHAZO (5 folds por participante) ===")
-        chequeo = chequeo_rechazo(X, y, part, X_neg, K, a.semilla, a.epocas)
+        chequeo = chequeo_rechazo(X, y, part, X_neg, clase_neg, K, a.semilla, a.epocas)
         print(
-            f"Falso rechazo (toma bien hecha rechazada): {100 * chequeo['falso_rechazo']:.1f} %\n"
-            f"Falsa aceptación (negativo aceptado como seña, por frame): {100 * chequeo['falsa_aceptacion_frames']:.1f} %\n"
-            f"Top-1 por toma contando el rechazo como fallo: {100 * chequeo['top1_con_rechazo']:.1f} %"
+            f"{'umbral':>7} {'falso rechazo':>14} {'falsa aceptación':>17} {'top-1 con rechazo':>18}"
         )
+        for f in chequeo["por_umbral"]:
+            print(
+                f"{f['umbral']:>7.1f} {100 * f['falso_rechazo']:>13.1f}% "
+                f"{100 * f['falsa_aceptacion']:>16.1f}% {100 * f['top1_con_rechazo']:>17.1f}%"
+            )
+        print("Falsa aceptación por clase de negativo (sin umbral):")
+        for c, v in sorted(
+            chequeo["falsa_aceptacion_por_clase_negativa"].items(),
+            key=lambda kv: -kv[1],
+        ):
+            print(f"  {c:>16} {100 * v:>5.1f}%")
 
     print("\n=== 2. ENTRENAMIENTO FINAL (70 participantes) ===")
     import tensorflow as tf
@@ -181,7 +238,7 @@ def main():
     print("\n=== 3. EXPORTACIÓN A .tflite ===")
     carpeta = Path(a.salida)
     carpeta.mkdir(parents=True, exist_ok=True)
-    ruta, paridad = exportar_tflite(modelo, carpeta, Xf)
+    ruta, paridad = exportar_tflite(modelo, carpeta, Xf, a.cuantizar)
     mb = ruta.stat().st_size / 1024**2
     print(
         f"{ruta} | {mb:.3f} MB | total con detector {mb + DETECTOR_MB:.2f} MB "
@@ -200,6 +257,7 @@ def main():
         "modelo": ruta.name,
         "tamano_mb": round(mb, 4),
         "paridad_tflite": paridad,
+        "cuantizado": a.cuantizar,
         "chequeo_rechazo_cv": chequeo,
         "negativos_excluidos": a.excluir_negativos,
         "verificado_con_camara": False,
