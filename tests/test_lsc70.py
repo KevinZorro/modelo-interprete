@@ -283,3 +283,58 @@ def test_diagnostico_detecta_mano_equivocada_y_calibra_el_ruido():
     assert r["n_dos_manos"] == 10 and r["dos_manos"]["mano_equivocada_pct"] == 100.0
     assert r["por_clase_mano_equivocada_pct"] == {"B": 100.0}
     assert r["mano_equivocada_sobre_todas_pct"] == pytest.approx(100 * 10 / 70)
+
+
+# --- Modelo final: entrenar, exportar a .tflite y comprobar paridad ---------------------
+@pytest.mark.slow
+def test_exportar_final_genera_tflite_con_paridad(tmp_path, monkeypatch):
+    pytest.importorskip("tensorflow")
+    import sys
+
+    from lsc70 import exportar_final
+
+    rng = np.random.default_rng(0)
+    centros = rng.normal(size=(3, 63)) * 2
+    X, y, p = [], [], []
+    for part in [f"Per{i:02d}" for i in range(1, 21)]:
+        for k, cls in enumerate(["A", "B", "C"]):
+            for _ in range(6):
+                X.append(centros[k] + rng.normal(size=63) * 0.3)
+                y.append(cls)
+                p.append(part)
+    np.savez(
+        tmp_path / "l.npz",
+        X=np.array(X, np.float32),
+        y=np.array(y),
+        participante=np.array(p),
+    )
+    clase = np.array(["no_gesture"] * 40 + ["palm"] * 20)  # 'palm' debe filtrarse
+    np.savez(
+        tmp_path / "n.npz",
+        X_neg=rng.normal(size=(60, 63)).astype(np.float32) * 3,
+        clase_por_muestra=clase,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "exportar_final",
+            "--npz",
+            str(tmp_path / "l.npz"),
+            "--negativos",
+            str(tmp_path / "n.npz"),
+            "--salida",
+            str(tmp_path / "out"),
+            "--epocas",
+            "8",
+            "--sin-chequeo",
+        ],
+    )
+    exportar_final.main()
+    cfg = json.loads((tmp_path / "out" / "config_modelo_final.json").read_text())
+    assert (tmp_path / "out" / "signaco_modelo_final.tflite").exists()
+    assert (
+        cfg["etiquetas"] == ["A", "B", "C", "no_es_seña"] and cfg["indice_rechazo"] == 3
+    )
+    assert cfg["paridad_tflite"]["coincide_argmax_pct"] >= 99
+    assert cfg["verificado_con_camara"] is False
