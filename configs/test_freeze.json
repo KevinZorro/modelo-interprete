@@ -83,6 +83,18 @@
       "commit": "245ae59 (+T-03 branch)",
       "purpose": "baseline measurement T-03",
       "date": "2026-10-25"
+    },
+    {
+      "version": "logreg_v1-t05",
+      "commit": "f3b2f0d (+T-05 branch)",
+      "purpose": "T-05 comparison on frozen test, once",
+      "date": "2026-10-25"
+    },
+    {
+      "version": "mlp_v1-t05",
+      "commit": "f3b2f0d (+T-05 branch)",
+      "purpose": "T-05 comparison on frozen test, once",
+      "date": "2026-10-25"
     }
   ]
 }

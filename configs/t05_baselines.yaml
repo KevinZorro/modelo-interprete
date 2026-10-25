@@ -1,0 +1,13 @@
+# T-05: baselines on the 5 development folds (55 train people). One change at a time.
+# Hypothesis: scaling by palm (v2) reduces false acceptance without hurting F1 vs max-norm (v1),
+# because the scale no longer moves with finger extension.
+seeds: [0, 1, 2]
+folds_source: configs/test_freeze.json   # dev_fold_de, no test people inside
+negatives: negativos_reposo.npz          # letter-like HaGRID classes excluded (R, L, L, S)
+numbers_as_none: true                    # as in the notebook v8
+models:
+  - {name: logreg_v1, kind: logreg, features: v1, stochastic: false}
+  - {name: svm_rbf_v1, kind: svm, features: v1, stochastic: false}
+  - {name: mlp_v1, kind: mlp, features: v1, stochastic: true}      # control = notebook v8 net
+  - {name: mlp_v2, kind: mlp, features: v2, stochastic: true}      # only change: palm scale
+selection_metric: f1_macro_mean_then_fa
