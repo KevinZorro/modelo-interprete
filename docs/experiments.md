@@ -103,3 +103,10 @@ resultados negativos. Léelo antes de proponer un experimento para no repetir.
 - Config: `configs/t05_baselines.yaml` · 5 folds por persona sobre 55 train (`dev_fold_de`) · semillas 0-2 · commit `f3b2f0d`+rama · MLflow `T-05-baselines`.
 - Resultado: v2 − v1 top-1 −0.1 pt (IC95 −1.2, +0.9); F1 0.870 vs 0.872. logreg 0.885, SVM 0.860. FA 8–13 % en todos. En test (una vez): logreg 0.917, MLP v1 0.910.
 - Conclusión: v2 no ayuda; el MLP no supera a logreg; la FA depende de los negativos. El 0.981 del `.tflite` viejo estaba inflado por haber visto el test. Detalle en `docs/reports/T-05.md`.
+
+## 2026-10-25 · T-06: negativos sintéticos y umbrales por clase (dev folds, 3 semillas)
+- Hipótesis: la FA (8-13 %) se debe a la poca variedad de "no seña"; negativos sintéticos duros (transición, híbrido de dedos) la bajan en negativos reales.
+- Cambio: una familia sintética a la vez (1 000 por fold, sin tocar normalización) contra el control T-05; logreg como línea base y MLP del notebook con los mismos cambios. Umbrales cross-fitted con FR de frames ≤ 8 %.
+- Config: `configs/t06_no_sena.yaml` · 55 personas, 5 folds · commit `5df83b6`+rama · MLflow `T-06-no-sena`.
+- Resultado: sintéticos no ayudan (MLP FA 10.1 / 10.9 % vs 8.1 % del control con umbral; logreg 9.8 / 9.5 % pero F1 −1 a −3 pts). El umbral por clase baja la FA del MLP 11.1 → 8.1 % con FR toma 4.7 %. Test (una vez): MLP+umbral FA 5.8 %, FR 7.8 %.
+- Conclusión: hipótesis rechazada. Falta variedad REAL (mano en reposo 10.5 % aceptada; números 47 %). Detalle en `docs/reports/T-06.md`.
