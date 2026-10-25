@@ -29,7 +29,7 @@ Estados: pendiente, en curso, en revisión, hecha y bloqueada.
 | T-11 | Implementar el enrutador estático y dinámico y evaluar el sistema completo | M3 | Claude Code | T-08, T-10 | pendiente | Métricas del sistema completo |
 | T-12 | Diseñar el pipeline de datos (metadatos de procedencia, formato de consentimiento y flujo de revisión) | M4 | Chat | T-02 | pendiente | Esquema y formato aprobados por Kevin |
 | T-13 | Construir el scraper de landmarks (descubre videos públicos, los procesa en temporal y guarda solo landmarks con procedencia) | M4 | Claude Code | T-12 | en revisión (`lsc70/scraper.py`) | Landmarks con URL, fecha y canal por muestra; ningún video ni foto en disco; etiqueta siempre vacía hasta revisión humana |
-| T-14 | Construir la cola de revisión con similitud contra referencias nativas | M4 | Claude Code | T-04, T-12 | pendiente | Herramienta que ordena candidatos y registra la validación |
+| T-14 | Construir la cola de revisión con similitud contra referencias nativas | M4 | Claude Code | T-04, T-12 | en revisión (`lsc70/review_queue.py`) | Herramienta que ordena candidatos y registra la validación |
 | T-15 | Construir el grabador con consentimiento que guarda landmarks | M4 | Claude Code | T-12 | pendiente | Muestras con procedencia y autorización registradas |
 | T-16 | Empaquetar el SDK del motor con contrato y model card | M5 | Claude Code | T-11 | pendiente | Librería integrable y documentada |
 
