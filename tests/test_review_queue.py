@@ -120,3 +120,11 @@ def test_held_seconds_and_teaching_flag(tmp_path):
     assert kept[0]["held_s"] >= rq.HOLD_S > kept[1]["held_s"]
     far = rows[:2] + [{"frame": 300, "t_s": 10.0, "features": a}]
     assert [k["held_s"] for k in rq.dedupe_segments(far)][-1] < rq.HOLD_S   # gap ends the segment
+
+
+def test_track_around_keeps_only_the_loop_window():
+    lm = [[0.1 * i, 0.2, 0.0] for i in range(21)]
+    rows = [{"frame": i * 10, "t_s": float(t), "landmarks": lm} for i, t in enumerate([0, 3, 4, 5, 6, 9])]
+    tr = rq.track_around(rows, 4.0)
+    assert [x[0] for x in tr] == [3.0, 4.0, 5.0, 6.0]            # 4-1 .. 4+2.5
+    assert len(tr[0][1]) == 21 and len(tr[0][1][0]) == 2          # x, y only

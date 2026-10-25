@@ -139,19 +139,49 @@ function applyFilter() {
   render();
 }
 
-function drawHand(it) {
-  const c = $("cv"), g = c.getContext("2d"), L = it.landmarks;
-  const css = getComputedStyle(document.documentElement);
-  g.clearRect(0, 0, c.width, c.height);
-  const xs = L.map(p => p[0]), ys = L.map(p => p[1]);
+// Hand drawing. Moving signs animate the landmark track in sync with the video clock.
+function trackBox(pts) {
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
   const x0 = Math.min(...xs), y0 = Math.min(...ys);
-  const s = Math.max(Math.max(...xs) - x0, Math.max(...ys) - y0, 1e-6);
-  const P = p => [30 + (p[0] - x0) / s * 420, 30 + (p[1] - y0) / s * 420];
+  return { x0, y0, s: Math.max(Math.max(...xs) - x0, Math.max(...ys) - y0, 1e-6) };
+}
+function drawLandmarks(L, box) {
+  const c = $("cv"), g = c.getContext("2d"), css = getComputedStyle(document.documentElement);
+  g.clearRect(0, 0, c.width, c.height);
+  const P = p => [30 + (p[0] - box.x0) / box.s * 420, 30 + (p[1] - box.y0) / box.s * 420];
   g.lineWidth = 5; g.lineCap = "round"; g.strokeStyle = css.getPropertyValue("--acc");
   BONES.forEach(([a, b]) => { const A = P(L[a]), B = P(L[b]); g.beginPath(); g.moveTo(...A); g.lineTo(...B); g.stroke(); });
   g.fillStyle = css.getPropertyValue("--fg");
   L.forEach((p, i) => { const q = P(p); g.beginPath(); g.arc(q[0], q[1], i === 0 ? 9 : 6, 0, 7); g.fill(); });
 }
+function drawHand(it) {
+  it.box = it.box || trackBox((it.track.length ? it.track.flatMap(f => f[1]) : it.landmarks));
+  drawLandmarks(it.landmarks, it.box);
+}
+function trackPose(track, t) {
+  if (t <= track[0][0]) return track[0][1];
+  for (let i = 1; i < track.length; i++) {
+    const [t1, A] = track[i - 1], [t2, B] = track[i];
+    if (t <= t2) {
+      if (t2 - t1 > 0.7) return (t - t1 < t2 - t) ? A : B;      // hand lost in between: hold
+      const k = (t - t1) / (t2 - t1);
+      return A.map((p, j) => [p[0] + (B[j][0] - p[0]) * k, p[1] + (B[j][1] - p[1]) * k]);
+    }
+  }
+  return track[track.length - 1][1];
+}
+const t0 = performance.now();
+function animate() {
+  if (cur && dyn(cur) && cur.track.length > 1) {
+    const lo = cur.t_s - PRE, span = PRE + POST;
+    let t;
+    if (ytReady && ytp.getPlayerState() === 1) t = ytp.getCurrentTime();   // follow the video
+    else t = lo + (((performance.now() - t0) / 1000) % span);              // video not playing: own loop
+    cur.box = cur.box || trackBox(cur.track.flatMap(f => f[1]));
+    drawLandmarks(trackPose(cur.track, Math.min(Math.max(t, lo), cur.t_s + POST)), cur.box);
+  }
+}
+setInterval(animate, 40);   // timer, not rAF: keeps running when the tab is not painted
 
 function statusText(d) {
   if (!d) return "";
@@ -189,7 +219,7 @@ function onYtState(e) {
     ytp.seekTo(cur.t_s, true); ytp.pauseVideo();
   }
 }
-function toggleMode() { if (!cur) return; cur.dynamicOverride = !dyn(cur); loadClip(); }
+function toggleMode() { if (!cur) return; cur.dynamicOverride = !dyn(cur); loadClip(); drawHand(cur); }
 function togglePlay() {
   if (!ytReady) return;
   const st = ytp.getPlayerState();

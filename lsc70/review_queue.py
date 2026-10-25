@@ -117,6 +117,15 @@ def load_dynamic_signs(path: Path = DYNAMIC_CONFIG) -> set:
     return set(json.loads(path.read_text(encoding="utf-8"))["dynamic"])
 
 
+TRACK_PRE_S, TRACK_POST_S = 1.0, 2.5   # same window the review player loops
+
+
+def track_around(rows: list, t: float) -> list:
+    """[(t_s, landmarks)] of the video's rows inside the player's loop window around `t`."""
+    return [[round(_t(r), 3), np.round(np.asarray(r["landmarks"])[:, :2], 3).tolist()]
+            for r in rows if t - TRACK_PRE_S <= _t(r) <= t + TRACK_POST_S]
+
+
 def review_items(out: Path) -> list:
     """Queue joined with landmarks, deduplicated, numbers first then rest, with any decision."""
     queue = {q["sample_id"]: q for q in read_jsonl(out / "review_queue.jsonl")}
@@ -135,6 +144,7 @@ def review_items(out: Path) -> list:
                           "dynamic": q["suggested"] in dynamic, "held_s": r["held_s"],
                           "teaching": r["held_s"] >= HOLD_S or q["suggested"] in dynamic,
                           "is_left": r["is_left"], "landmarks": r["landmarks"],
+                          "track": track_around(rows, _t(r)),
                           "decision": decided.get(q["sample_id"])})
     items.sort(key=lambda x: (not x["teaching"], KIND_PRIORITY.get(x["query_kind"], 9),
                               x["video_id"], x["frame"]))
