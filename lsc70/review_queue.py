@@ -75,22 +75,36 @@ def latest_reviews(out: Path) -> dict:
 KIND_PRIORITY = {"numeros": 0, "reposo": 1, "lsc": 2}
 
 
+HOLD_S = 1.0        # a sign being taught is shown and held at least this long (Kevin, 2026-10-25)
+MAX_GAP_S = 0.7     # a longer hole in the detections (hand lost) ends a segment
+
+
+def _t(r: dict) -> float:
+    return float(r.get("t_s", r["frame"] / 30.0))
+
+
 def dedupe_segments(rows: list, threshold: float = 0.06, long_segment: int = 8) -> list:
     """Keep one or two samples per stretch of near-identical frames of one video.
 
     `rows` are landmark rows of a single video sorted by frame. A segment starts at the
-    first row and ends when cosine distance to its first row exceeds `threshold`; the
-    middle row is kept, plus the first one when the segment has >= `long_segment` rows.
+    first row and ends when cosine distance to its first row exceeds `threshold` or the
+    detections have a gap above MAX_GAP_S; the middle row is kept, plus the first one when
+    the segment has >= `long_segment` rows. Kept rows are copies with `held_s`: how long
+    the pose stayed put (segment span plus one sampling step).
     """
     if not rows:
         return []
     F = _unit(np.asarray([r["features"] for r in rows], dtype=np.float64))
+    gaps = [_t(b) - _t(a) for a, b in zip(rows, rows[1:]) if 0 < _t(b) - _t(a) <= MAX_GAP_S]
+    step = float(np.median(gaps)) if gaps else 0.0
     keep, start = [], 0
     for i in range(1, len(rows) + 1):
-        if i == len(rows) or 1.0 - F[i] @ F[start] > threshold:
+        if (i == len(rows) or 1.0 - F[i] @ F[start] > threshold
+                or _t(rows[i]) - _t(rows[i - 1]) > MAX_GAP_S):
             seg = list(range(start, i))
+            held = round(_t(rows[seg[-1]]) - _t(rows[seg[0]]) + step, 3)
             picks = {seg[len(seg) // 2]} | ({seg[0]} if len(seg) >= long_segment else set())
-            keep += [rows[j] for j in sorted(picks)]
+            keep += [{**rows[j], "held_s": held} for j in sorted(picks)]
             start = i
     return keep
 
@@ -118,10 +132,12 @@ def review_items(out: Path) -> list:
         for r in dedupe_segments(rows):
             q = queue[sample_id(r)]
             items.append({**q, "video_id": r["video_id"], "frame": r["frame"],
-                          "dynamic": q["suggested"] in dynamic,
+                          "dynamic": q["suggested"] in dynamic, "held_s": r["held_s"],
+                          "teaching": r["held_s"] >= HOLD_S or q["suggested"] in dynamic,
                           "is_left": r["is_left"], "landmarks": r["landmarks"],
                           "decision": decided.get(q["sample_id"])})
-    items.sort(key=lambda x: (KIND_PRIORITY.get(x["query_kind"], 9), x["video_id"], x["frame"]))
+    items.sort(key=lambda x: (not x["teaching"], KIND_PRIORITY.get(x["query_kind"], 9),
+                              x["video_id"], x["frame"]))
     return items
 
 

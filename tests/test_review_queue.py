@@ -108,3 +108,15 @@ def test_dynamic_flag_follows_confirmed_sign_list(tmp_path):
     rq.build(tmp_path, tmp_path / "refs.npz")
     items = rq.review_items(tmp_path)
     assert items and all(i["dynamic"] == (i["suggested"] in rq.load_dynamic_signs()) for i in items)
+
+
+def test_held_seconds_and_teaching_flag(tmp_path):
+    a, b = [1.0] + [0.0] * 62, [0.0, 1.0] + [0.0] * 61
+    # pose A held 4 samples 0.33 s apart (+ one step = 1.33 s), then a lone B 1 s later
+    rows = [{"frame": i * 10, "t_s": i / 3, "features": a} for i in range(4)]
+    rows += [{"frame": 40, "t_s": 1.67, "features": b}]
+    kept = rq.dedupe_segments(rows)
+    assert [round(k["held_s"], 2) for k in kept] == [1.33, 0.33]
+    assert kept[0]["held_s"] >= rq.HOLD_S > kept[1]["held_s"]
+    far = rows[:2] + [{"frame": 300, "t_s": 10.0, "features": a}]
+    assert [k["held_s"] for k in rq.dedupe_segments(far)][-1] < rq.HOLD_S   # gap ends the segment

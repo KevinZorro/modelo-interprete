@@ -47,6 +47,13 @@
   <header>
     <h1>Revisión de landmarks LSC</h1>
     <div>
+      <label>Tipo
+        <select id="teach">
+          <option value="teaching">enseñadas (≥1 s o con movimiento)</option>
+          <option value="talk">probable conversación</option>
+          <option value="any">todas</option>
+        </select>
+      </label>
       <label>Filtro
         <select id="filter">
           <option value="todo">todas pendientes</option>
@@ -100,7 +107,7 @@
   <div id="empty" class="card" style="display:none">No quedan muestras con este filtro. Cuando termines, ejecuta
     <code>python -m lsc70.review_queue export --out data/scraper</code>.</div>
 
-  <p class="help">Atajos: <kbd>A</kbd> acepta · <kbd>R</kbd> reetiqueta · <kbd>N</kbd> no es seña · <kbd>X</kbd> rechaza ·
+  <p class="help">Una seña enseñada se mantiene al menos 1 s; si no, suelen estar conversando.<br>Atajos: <kbd>A</kbd> acepta · <kbd>R</kbd> reetiqueta · <kbd>N</kbd> no es seña · <kbd>X</kbd> rechaza ·
     <kbd>Z</kbd> deshace · <kbd>D</kbd> quieta/bucle · <kbd>␣</kbd> pausa · <kbd>,</kbd> <kbd>.</kbd> avanza 0,1 s · <kbd>←</kbd> <kbd>→</kbd> navegan. La sugerencia solo ordena la cola:
     la etiqueta es la que tú decidas. El clip es el reproductor de la plataforma, no se guarda nada.</p>
 </main>
@@ -124,7 +131,10 @@ function needReviewer() {
 
 function applyFilter() {
   const f = $("filter").value;
-  view = items.filter(it => f === "all" ? true : (!it.decision && (f === "todo" || it.query_kind === f)));
+  const t = $("teach").value;
+  const okTeach = it => t === "any" || (t === "teaching") === it.teaching;
+  view = items.filter(it => okTeach(it) &&
+    (f === "all" ? true : (!it.decision && (f === "todo" || it.query_kind === f))));
   pos = Math.min(pos, Math.max(view.length - 1, 0));
   render();
 }
@@ -204,7 +214,7 @@ function render() {
   $("yt").href = `https://www.youtube.com/watch?v=${it.video_id}&t=${t}s`;
   $("sug").textContent = it.suggested_names || it.suggested;
   $("sug2").textContent = `distancia ${it.distance} · segunda: ${it.second} · seg ${t} (${pos + 1}/${view.length})`;
-  $("kind").textContent = "búsqueda: " + it.query_kind;
+  $("kind").textContent = `búsqueda: ${it.query_kind} · pose mantenida ${it.held_s.toFixed(1)} s`;
   $("handinfo").textContent = it.is_left ? "mano izquierda" : "mano derecha";
   const d = it.decision;
   $("status").textContent = statusText(d); $("status").className = "status " + (d ? d.decision : "");
@@ -272,6 +282,7 @@ $("bPrev").onclick = () => move(-1);
 $("bNext").onclick = () => move(1);
 $("who").oninput = setReviewer;
 $("filter").onchange = () => { pos = 0; applyFilter(); };
+$("teach").onchange = () => { pos = 0; applyFilter(); };
 
 document.addEventListener("keydown", e => {
   if (e.target === $("lab")) {
