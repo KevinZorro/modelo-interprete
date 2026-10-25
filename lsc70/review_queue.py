@@ -17,6 +17,8 @@ from typing import Optional
 
 import numpy as np
 
+from lsc70 import alias_poses
+
 DECISIONS = ("accept", "relabel", "reject")
 SHEET_COLS = ["sample_id", "url_at_time", "query_kind", "suggested", "distance",
               "second", "decision", "label", "notes"]
@@ -123,7 +125,9 @@ def build(out: Path, refs: Path) -> int:
         cent, names = load_refs(refs)
         ranked = rank_samples(np.asarray([r["features"] for r in rows]), cent, names)
         queue = [{"sample_id": sample_id(r), "url": r["url"], "t_s": r["t_s"],
-                  "query_kind": r["query_kind"], **k} for r, k in zip(rows, ranked)]
+                  "query_kind": r["query_kind"], **k,
+                  "suggested_names": alias_poses.display_names(k["suggested"])}
+                 for r, k in zip(rows, ranked)]
         queue.sort(key=lambda q: (q["distance"], -q["margin"]))
     with (out / "review_queue.jsonl").open("w", encoding="utf-8") as f:
         for q in queue:
@@ -214,7 +218,9 @@ def export_validated(out: Path) -> int:
             rev = reviews.get(sample_id(r))
             if not rev or rev["decision"] == "reject":
                 continue
-            f.write(json.dumps({**r, "label": rev["label"], "review_status": "validated",
+            f.write(json.dumps({**r, "label": rev["label"],
+                                "pose": alias_poses.canonical(rev["label"]),
+                                "review_status": "validated",
                                 "reviewer": rev["reviewer"], "reviewed_at": rev["reviewed_at"]},
                                ensure_ascii=False) + "\n")
             n += 1

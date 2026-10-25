@@ -90,3 +90,13 @@ def test_undo_cancels_and_review_items_order(tmp_path):
     assert rq.build(tmp_path, tmp_path / "refs.npz") == 3
     with pytest.raises(ValueError):
         rq.record_review(tmp_path, sid, "relabel", "", "Kevin")
+
+
+def test_export_adds_pose_class_for_aliases(tmp_path):
+    _write_run(tmp_path, n=3)
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    assert all("suggested_names" in q for q in rq.read_jsonl(tmp_path / "review_queue.jsonl"))
+    rq.record_review(tmp_path, "v:20", "relabel", "1", "Kevin")
+    rq.export_validated(tmp_path)
+    val = rq.read_jsonl(tmp_path / "validated.jsonl")
+    assert val[0]["label"] == "1" and val[0]["pose"] == "F"
