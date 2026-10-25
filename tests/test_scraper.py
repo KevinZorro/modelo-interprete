@@ -78,3 +78,11 @@ def test_run_is_resumable_and_logs_failures(tmp_path):
     scraper.run(tmp_path, lambda img: _hand(), 10, lim, dl, _frames)
     assert len((tmp_path / "landmarks.jsonl").read_text().splitlines()) == n  # "abc" not redone
     json.loads((tmp_path / "failed.jsonl").read_text().splitlines()[0])
+
+
+def test_stats_count_tried_hand_and_ok():
+    seq = iter([None, _hand(), (np.zeros((21, 3)), False), _hand()])
+    st = {}
+    out = list(scraper.samples_from_frames(_frames(None), lambda img: next(seq), stride=10,
+                                           max_samples=2, stats=st))
+    assert len(out) == 2 and st == {"tried": 4, "hand": 3, "ok": 2}

@@ -1,6 +1,6 @@
 # T-13 — Corrida real del scraper (equipo de Kevin, Windows, Python 3.11)
 
-**Estado:** corrida real hecha sobre 21 candidatos; 14 procesados, 6 no disponibles, 1 sin mano detectada.
+**Estado:** dos corridas reales (21 y luego 52 candidatos). Acumulado: 37 videos procesados, 2110 landmarks, 23 canales. La tabla y el texto de abajo describen la primera corrida (14 videos); la segunda (23 videos nuevos) está al final.
 
 **Cambios** (`lsc70/scraper.py`): (1) selector de formato que acepta streams de solo video H.264 ≤480p, porque YouTube ya no sirve formatos combinados y fallaban los 20 videos; así tampoco se baja audio. (2) `js_runtimes: node`, que yt-dlp exige para resolver las firmas del reproductor.
 
@@ -21,4 +21,6 @@ Los 6 fallos son "This video is not available" (retirados o con restricción), s
 
 **Riesgos:** (1) las etiquetas "lsc/numeros/reposo" son de la búsqueda, no de la seña: un video de "reposo" puede traer señas y viceversa. (2) 60 muestras seguidas por video están muy correlacionadas; para entrenar cuenta como mucho menos de 780 ejemplos. (3) Con 8 canales el sesgo de grabación es alto. (4) `data/scraper/` no se versiona; los 780 landmarks viven solo en el equipo de Kevin.
 
-**Siguiente:** contar fotogramas intentados, ampliar candidatos (hoy 21) y construir T-14 (cola de revisión con conocedor de LSC).
+**Segunda corrida (con contador de fotogramas):** 23 videos nuevos de números y reposo (12 y 11), 2369 fotogramas intentados, 1330 con mano válida → **56,1 %** por fotograma (números 678/1132 = 59,9 %; reposo 652/1237 = 52,7 %); ningún video sin mano. Total por tipo: lsc 420, numeros 798, reposo 892. 15 candidatos más dieron "not available". El 56 % es sobre fotogramas tomados cada 10 hasta el tope de 60; no es el FR/FA del modelo.
+Cambio extra: lectura/escritura en UTF-8 (en Windows `read_text()` rompía con acentos). Los videos "reposo" venían de búsquedas de saludos y clases, así que muchos traen señas, no reposo.
+**Siguiente:** T-14 (ver `T-14.md`).

@@ -80,23 +80,31 @@ def discover(query: str, kind: str, limit: int, limiter: Optional[RateLimiter] =
 # ----- per-video processing -----
 
 def samples_from_frames(frames: Iterable, detect: Callable, stride: int = DEFAULT_STRIDE,
-                        max_samples: int = DEFAULT_MAX_PER_VIDEO) -> Iterator[dict]:
+                        max_samples: int = DEFAULT_MAX_PER_VIDEO,
+                        stats: Optional[dict] = None) -> Iterator[dict]:
     """Yield sample dicts from `frames` (iterable of (index, t_seconds, image)).
 
     `detect(image)` returns `(landmarks, is_left)` or None. Frames with no hand or a
     rejected landmark set are skipped; the image is dropped as soon as the loop moves on.
+    If `stats` is given it gets `tried` (frames sent to the detector), `hand` (hand found)
+    and `ok` (passed preprocessing); counting stops when `max_samples` is reached.
     """
+    st = stats if stats is not None else {}
+    st.update(tried=0, hand=0, ok=0)
     n = 0
     for idx, t, img in frames:
         if idx % stride:
             continue
+        st["tried"] += 1
         found = detect(img)
         if found is None:
             continue
+        st["hand"] += 1
         landmarks, is_left = found
         res = preprocess(landmarks, is_left)
         if not res.ok:
             continue
+        st["ok"] += 1
         raw = np.asarray([[p.x, p.y, p.z] for p in landmarks], dtype=np.float64) \
             if hasattr(landmarks[0], "x") else np.asarray(landmarks, dtype=np.float64)
         yield {
@@ -144,7 +152,7 @@ def mediapipe_detect(model_path: str) -> Callable:
 
 def process_video(meta: dict, detect: Callable, stride: int = DEFAULT_STRIDE,
                   max_samples: int = DEFAULT_MAX_PER_VIDEO, downloader: Optional[Callable] = None,
-                  frames_fn: Callable = _video_frames) -> list:
+                  frames_fn: Callable = _video_frames, stats: Optional[dict] = None) -> list:
     """Download `meta["url"]` to a temp dir, extract samples, delete the video.
 
     `downloader(url, dir) -> path` and `frames_fn(path)` are injectable for tests.
@@ -152,7 +160,7 @@ def process_video(meta: dict, detect: Callable, stride: int = DEFAULT_STRIDE,
     downloader = downloader or _ytdlp_download
     with tempfile.TemporaryDirectory(prefix="lsc_scraper_") as tmp:
         path = downloader(meta["url"], tmp)
-        samples = list(samples_from_frames(frames_fn(path), detect, stride, max_samples))
+        samples = list(samples_from_frames(frames_fn(path), detect, stride, max_samples, stats))
     prov = {
         "url": meta["url"], "video_id": meta["video_id"], "channel": meta.get("channel"),
         "channel_url": meta.get("channel_url"), "query": meta.get("query"),
@@ -186,12 +194,12 @@ def _ytdlp_download(url: str, directory: str) -> str:
 
 def load_candidates(out: Path) -> list:
     p = out / "candidates.jsonl"
-    return [json.loads(x) for x in p.read_text().splitlines() if x] if p.exists() else []
+    return [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x] if p.exists() else []
 
 
 def done_ids(out: Path) -> set:
     p = out / "done.txt"
-    return set(p.read_text().split()) if p.exists() else set()
+    return set(p.read_text(encoding="utf-8").split()) if p.exists() else set()
 
 
 def append_jsonl(path: Path, rows: Iterable[dict]):
@@ -212,13 +220,17 @@ def run(out: Path, detect: Callable, limit_videos: int, limiter: Optional[RateLi
     for meta in todo:
         limiter.wait()
         try:
-            rows = process_video(meta, detect, downloader=downloader, frames_fn=frames_fn, **kw)
+            vstats: dict = {}
+            rows = process_video(meta, detect, downloader=downloader, frames_fn=frames_fn,
+                                 stats=vstats, **kw)
         except Exception as e:  # network, removed video, codec: log and go on
             append_jsonl(out / "failed.jsonl", [{"video_id": meta["video_id"], "error": repr(e)[:300]}])
             stats["failed"] += 1
             continue
         append_jsonl(out / "landmarks.jsonl", rows)
-        with (out / "done.txt").open("a") as f:
+        append_jsonl(out / "videos.jsonl", [{"video_id": meta["video_id"],
+                                             "query_kind": meta.get("query_kind"), **vstats}])
+        with (out / "done.txt").open("a", encoding="utf-8") as f:
             f.write(meta["video_id"] + "\n")
         stats["videos"] += 1
         stats["samples"] += len(rows)
