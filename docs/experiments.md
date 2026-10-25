@@ -117,3 +117,10 @@ resultados negativos. Léelo antes de proponer un experimento para no repetir.
 - Config: `configs/t07_optuna.yaml` · 55 personas, 5 folds · commit `ef7b0da`+rama · MLflow `T-07-optuna`.
 - Resultado: FA dev 8.4 → 6.3 % (−1.7/−2.5/−2.2 por semilla), F1 0.870 → 0.875. Test (una vez): FA 7.2 → 6.1 %, FR toma 8.5 → 7.2 %, F1 0.892 → 0.910.
 - Conclusión: mejora pequeña pero consistente; FA < 5 % sigue sin cumplirse. El cuello son los negativos reales. Detalle en `docs/reports/T-07.md`.
+
+## 2026-10-25 · T-08: exportación a TFLite sin cuantizar (paridad)
+- Hipótesis: el MLP de T-07 convertido a float32 reproduce a Keras con diferencia ≤ 1e-5, incluida la decisión con umbral por clase.
+- Cambio: solo la conversión; sin cuantizar; entrada de los vectores del contrato v1 y 2000 frames de dev.
+- Config: `lsc70/t08_export.py` · semilla 1 · commit de la rama `claude/project-thread-gwy9ap` · sin test congelado.
+- Resultado: dif. máx. 8.3e-7, argmax y decisión idénticos en 100 %; 0.19 MB; 0.003 ms por inferencia en CPU de escritorio (no celular).
+- Conclusión: paridad cumplida; falta latencia en gama media. Detalle en `docs/reports/T-08.md`.

@@ -26,8 +26,8 @@ CONTROL = {"units1": 256, "units2": 128, "dropout1": 0.4, "dropout2": 0.3, "lr":
            "batch": 16, "l2": 0.0}  # the T-06 / notebook v8 network
 
 
-def train_scores(p, Xtr, ytr, gtr, Xev, n_classes, seed):
-    """Train the MLP with parameters `p` (group-split validation for early stopping); score Xev."""
+def fit_mlp(p, Xtr, ytr, gtr, n_classes, seed):
+    """Train the MLP with parameters `p` (group-split validation for early stopping)."""
     from sklearn.model_selection import GroupShuffleSplit
     from tensorflow import keras
 
@@ -48,7 +48,12 @@ def train_scores(p, Xtr, ytr, gtr, Xev, n_classes, seed):
           batch_size=int(p["batch"]), verbose=0, shuffle=True,
           callbacks=[keras.callbacks.EarlyStopping(monitor="val_loss", patience=PACIENCIA,
                                                    restore_best_weights=True)])
-    return m.predict(Xev, verbose=0, batch_size=1024)
+    return m
+
+
+def train_scores(p, Xtr, ytr, gtr, Xev, n_classes, seed):
+    """Train with `fit_mlp` and score Xev."""
+    return fit_mlp(p, Xtr, ytr, gtr, n_classes, seed).predict(Xev, verbose=0, batch_size=1024)
 
 
 class Data:
