@@ -26,7 +26,7 @@ def test_rank_suggests_nearest_class_and_orders_by_distance():
 
 def _write_run(tmp_path, n=3):
     rows = [{"video_id": "v", "frame": i * 10, "t_s": i, "url": "https://y.test/watch?v=v",
-             "query_kind": "lsc", "features": ([1.0] + [0.0] * 62) if i else ([0.0, 1.0] + [0.0] * 61),
+             "query_kind": "lsc", "is_left": False, "landmarks": [[0.0, 0.0, 0.0]] * 21, "features": ([1.0] + [0.0] * 62) if i else ([0.0, 1.0] + [0.0] * 61),
              "label": None, "review_status": "pending"} for i in range(n)]
     (tmp_path / "landmarks.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
     cent, names = _refs()
@@ -66,3 +66,27 @@ def test_bad_decisions_are_rejected(tmp_path):
     assert rq.parse_decision({"sample_id": "x", "decision": ""}) is None
     with pytest.raises(ValueError):
         rq.import_sheet(tmp_path, tmp_path / "none.csv", " ")
+
+
+def test_dedupe_keeps_one_or_two_per_segment():
+    def row(i, vec):
+        return {"frame": i, "features": vec}
+    a, b = [1.0] + [0.0] * 62, [0.0, 1.0] + [0.0] * 61
+    rows = [row(i, a) for i in range(3)] + [row(3 + i, b) for i in range(10)]
+    kept = rq.dedupe_segments(rows)
+    assert [r["frame"] for r in kept] == [1, 3, 8]      # middle of A; first+middle of long B
+    assert rq.dedupe_segments([]) == []
+
+
+def test_undo_cancels_and_review_items_order(tmp_path):
+    _write_run(tmp_path, n=3)
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    sid = "v:20"
+    rq.record_review(tmp_path, sid, "relabel", "7", "Kevin")
+    assert rq.latest_reviews(tmp_path)[sid]["label"] == "7"
+    assert [i["decision"] is not None for i in rq.review_items(tmp_path) if i["sample_id"] == sid] == [True]
+    rq.record_review(tmp_path, sid, "undo", None, "Kevin")
+    assert sid not in rq.latest_reviews(tmp_path)
+    assert rq.build(tmp_path, tmp_path / "refs.npz") == 3
+    with pytest.raises(ValueError):
+        rq.record_review(tmp_path, sid, "relabel", "", "Kevin")

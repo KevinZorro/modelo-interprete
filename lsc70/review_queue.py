@@ -62,9 +62,60 @@ def read_jsonl(p: Path) -> list:
     return [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x]
 
 
+def latest_reviews(out: Path) -> dict:
+    """Last decision per sample from the append-only log; an `undo` record cancels it."""
+    last = {}
+    for r in read_jsonl(out / "reviews.jsonl"):
+        last[r["sample_id"]] = r
+    return {k: v for k, v in last.items() if v["decision"] in DECISIONS}
+
+
+KIND_PRIORITY = {"numeros": 0, "reposo": 1, "lsc": 2}
+
+
+def dedupe_segments(rows: list, threshold: float = 0.06, long_segment: int = 8) -> list:
+    """Keep one or two samples per stretch of near-identical frames of one video.
+
+    `rows` are landmark rows of a single video sorted by frame. A segment starts at the
+    first row and ends when cosine distance to its first row exceeds `threshold`; the
+    middle row is kept, plus the first one when the segment has >= `long_segment` rows.
+    """
+    if not rows:
+        return []
+    F = _unit(np.asarray([r["features"] for r in rows], dtype=np.float64))
+    keep, start = [], 0
+    for i in range(1, len(rows) + 1):
+        if i == len(rows) or 1.0 - F[i] @ F[start] > threshold:
+            seg = list(range(start, i))
+            picks = {seg[len(seg) // 2]} | ({seg[0]} if len(seg) >= long_segment else set())
+            keep += [rows[j] for j in sorted(picks)]
+            start = i
+    return keep
+
+
+def review_items(out: Path) -> list:
+    """Queue joined with landmarks, deduplicated, numbers first then rest, with any decision."""
+    queue = {q["sample_id"]: q for q in read_jsonl(out / "review_queue.jsonl")}
+    by_video = {}
+    for r in read_jsonl(out / "landmarks.jsonl"):
+        if sample_id(r) in queue:
+            by_video.setdefault(r["video_id"], []).append(r)
+    decided = latest_reviews(out)
+    items = []
+    for rows in by_video.values():
+        rows.sort(key=lambda r: r["frame"])
+        for r in dedupe_segments(rows):
+            q = queue[sample_id(r)]
+            items.append({**q, "video_id": r["video_id"], "frame": r["frame"],
+                          "is_left": r["is_left"], "landmarks": r["landmarks"],
+                          "decision": decided.get(q["sample_id"])})
+    items.sort(key=lambda x: (KIND_PRIORITY.get(x["query_kind"], 9), x["video_id"], x["frame"]))
+    return items
+
+
 def build(out: Path, refs: Path) -> int:
     """Write review_queue.jsonl: pending, unreviewed samples, closest to a reference first."""
-    reviewed = {r["sample_id"] for r in read_jsonl(out / "reviews.jsonl")}
+    reviewed = set(latest_reviews(out))
     rows = [r for r in read_jsonl(out / "landmarks.jsonl")
             if r.get("review_status") == "pending" and sample_id(r) not in reviewed]
     queue = []
@@ -86,6 +137,7 @@ def url_at(url: str, t_s: float) -> str:
 
 def write_sheet(out: Path, csv_path: Optional[Path] = None) -> Path:
     csv_path = csv_path or out / "review_sheet.csv"
+    done = latest_reviews(out)
     with csv_path.open("w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=SHEET_COLS)
         w.writeheader()
@@ -93,7 +145,9 @@ def write_sheet(out: Path, csv_path: Optional[Path] = None) -> Path:
             w.writerow({"sample_id": q["sample_id"], "url_at_time": url_at(q["url"], q["t_s"]),
                         "query_kind": q["query_kind"], "suggested": q["suggested"],
                         "distance": q["distance"], "second": q["second"],
-                        "decision": "", "label": "", "notes": ""})
+                        "decision": done.get(q["sample_id"], {}).get("decision", ""),
+                        "label": done.get(q["sample_id"], {}).get("label") or "",
+                        "notes": done.get(q["sample_id"], {}).get("notes", "")})
     return csv_path
 
 
@@ -111,6 +165,26 @@ def parse_decision(row: dict) -> Optional[dict]:
         raise ValueError(f"{row['sample_id']}: relabel needs a label")
     return {"sample_id": row["sample_id"], "decision": dec,
             "label": None if dec == "reject" else label, "notes": (row.get("notes") or "").strip()}
+
+
+def record_review(out: Path, sample: str, decision: str, label: Optional[str], reviewer: str,
+                  notes: str = "") -> dict:
+    """Append one decision (or `undo`) from the review page to reviews.jsonl."""
+    if not reviewer.strip():
+        raise ValueError("reviewer name is required")
+    if decision != "undo":
+        d = parse_decision({"sample_id": sample, "decision": decision, "label": label or "",
+                            "suggested": "", "notes": notes})
+        if d["decision"] == "accept" and not d["label"]:
+            raise ValueError("accept needs the suggested label")
+    else:
+        d = {"sample_id": sample, "decision": "undo", "label": None, "notes": ""}
+    rec = {**d, "reviewer": reviewer.strip(),
+           "reviewed_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    with (out / "reviews.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    write_sheet(out)
+    return rec
 
 
 def import_sheet(out: Path, csv_path: Path, reviewer: str) -> int:
@@ -133,7 +207,7 @@ def import_sheet(out: Path, csv_path: Path, reviewer: str) -> int:
 
 def export_validated(out: Path) -> int:
     """validated.jsonl: samples with a human label; rejected ones are left out."""
-    reviews = {r["sample_id"]: r for r in read_jsonl(out / "reviews.jsonl")}
+    reviews = latest_reviews(out)
     n = 0
     with (out / "validated.jsonl").open("w", encoding="utf-8") as f:
         for r in read_jsonl(out / "landmarks.jsonl"):

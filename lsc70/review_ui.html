@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revisión de landmarks LSC</title>
+<style>
+  :root { --bg:#f6f5f2; --fg:#1d1d1b; --mut:#6b6a66; --card:#fff; --line:#dcdad3;
+          --ok:#1f7a4d; --bad:#b3372f; --re:#9a6a00; --acc:#2d5bd8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161614; --fg:#ecebe6; --mut:#9a9890; --card:#201f1d; --line:#3a3935;
+            --ok:#4bbd86; --bad:#e8786f; --re:#e0b341; --acc:#7c9bff; } }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui,sans-serif }
+  main { max-width:960px; margin:0 auto; padding:16px }
+  header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between }
+  h1 { font-size:18px; margin:0 }
+  .bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; margin:8px 0 14px }
+  .bar > div { height:100%; background:var(--acc); width:0 }
+  .row { display:flex; flex-wrap:wrap; gap:12px }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px }
+  .video { flex:1 1 480px; aspect-ratio:16/9; min-width:280px; padding:0; overflow:hidden }
+  .video iframe { width:100%; height:100%; border:0 }
+  .hand { flex:0 0 260px }
+  canvas { width:240px; height:240px; display:block; margin:0 auto }
+  .info { margin-top:12px; display:flex; flex-wrap:wrap; gap:8px 20px; align-items:baseline }
+  .sug { font-size:22px; font-weight:600 }
+  .tag { font-size:12px; padding:2px 8px; border-radius:99px; border:1px solid var(--line); color:var(--mut) }
+  .status { font-weight:600 }
+  .accept { color:var(--ok) } .reject { color:var(--bad) } .relabel { color:var(--re) }
+  .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px }
+  button { font:inherit; padding:8px 14px; border-radius:8px; border:1px solid var(--line);
+           background:var(--card); color:var(--fg); cursor:pointer }
+  button:hover { border-color:var(--acc) }
+  kbd { font:12px ui-monospace,monospace; border:1px solid var(--line); border-bottom-width:2px;
+        border-radius:4px; padding:0 5px; margin-left:4px; color:var(--mut) }
+  input { font:inherit; padding:7px 10px; border-radius:8px; border:1px solid var(--line);
+          background:var(--card); color:var(--fg) }
+  #relabelBox { display:none; margin-top:10px; gap:8px; align-items:center }
+  .help { color:var(--mut); font-size:13px; margin-top:14px }
+  a { color:var(--acc) }
+  #msg { color:var(--bad); min-height:1.4em }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Revisión de landmarks LSC</h1>
+    <div>
+      <label>Filtro
+        <select id="filter">
+          <option value="todo">todas pendientes</option>
+          <option value="numeros">solo números</option>
+          <option value="reposo">solo reposo</option>
+          <option value="lsc">solo abecedario</option>
+          <option value="all">todas (incluye revisadas)</option>
+        </select>
+      </label>
+      <label>Revisor <input id="who" size="12" placeholder="tu nombre"></label>
+    </div>
+  </header>
+  <div class="bar"><div id="prog"></div></div>
+  <div id="count" class="help"></div>
+
+  <div id="view" style="display:none">
+    <div class="row">
+      <div class="card video"><iframe id="player" allow="autoplay; encrypted-media; fullscreen"
+        referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>
+      <div class="card hand">
+        <canvas id="cv" width="480" height="480"></canvas>
+        <div class="help" style="text-align:center" id="handinfo"></div>
+      </div>
+    </div>
+    <div class="info">
+      <span>Sugerida: <span class="sug" id="sug"></span></span>
+      <span class="help" id="sug2"></span>
+      <span class="tag" id="kind"></span>
+      <span class="status" id="status"></span>
+      <a id="yt" target="_blank" rel="noopener">abrir en YouTube</a>
+    </div>
+    <div class="actions">
+      <button id="bAccept">Aceptar sugerida <kbd>A</kbd></button>
+      <button id="bRelabel">Reetiquetar <kbd>R</kbd></button>
+      <button id="bReject">Rechazar <kbd>X</kbd></button>
+      <button id="bUndo">Deshacer <kbd>Z</kbd></button>
+      <button id="bPrev">← Anterior</button>
+      <button id="bNext">Siguiente →</button>
+    </div>
+    <div id="relabelBox">
+      <input id="lab" list="labels" placeholder="letra, número o no_es_seña" autocomplete="off">
+      <datalist id="labels"></datalist>
+      <button id="bOk">Guardar <kbd>Enter</kbd></button>
+      <span class="help">Esc cancela</span>
+    </div>
+    <div id="msg"></div>
+  </div>
+  <div id="empty" class="card" style="display:none">No quedan muestras con este filtro. Cuando termines, ejecuta
+    <code>python -m lsc70.review_queue export --out data/scraper</code>.</div>
+
+  <p class="help">Atajos: <kbd>A</kbd> acepta · <kbd>R</kbd> reetiqueta · <kbd>X</kbd> rechaza ·
+    <kbd>Z</kbd> deshace · <kbd>←</kbd> <kbd>→</kbd> navegan. La sugerencia solo ordena la cola:
+    la etiqueta es la que tú decidas. El clip es el reproductor de la plataforma, no se guarda nada.</p>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let items = [], view = [], pos = 0, reviewer = "";
+try { reviewer = localStorage.getItem("reviewer") || ""; } catch (e) {}
+const BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+
+function setReviewer() {
+  reviewer = $("who").value.trim();
+  try { localStorage.setItem("reviewer", reviewer); } catch (e) {}
+}
+function needReviewer() {
+  if (reviewer) return true;
+  $("msg").textContent = "Escribe tu nombre en «Revisor» antes de decidir.";
+  $("who").focus();
+  return false;
+}
+
+function applyFilter() {
+  const f = $("filter").value;
+  view = items.filter(it => f === "all" ? true : (!it.decision && (f === "todo" || it.query_kind === f)));
+  pos = Math.min(pos, Math.max(view.length - 1, 0));
+  render();
+}
+
+function drawHand(it) {
+  const c = $("cv"), g = c.getContext("2d"), L = it.landmarks;
+  const css = getComputedStyle(document.documentElement);
+  g.clearRect(0, 0, c.width, c.height);
+  const xs = L.map(p => p[0]), ys = L.map(p => p[1]);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys);
+  const s = Math.max(Math.max(...xs) - x0, Math.max(...ys) - y0, 1e-6);
+  const P = p => [30 + (p[0] - x0) / s * 420, 30 + (p[1] - y0) / s * 420];
+  g.lineWidth = 5; g.lineCap = "round"; g.strokeStyle = css.getPropertyValue("--acc");
+  BONES.forEach(([a, b]) => { const A = P(L[a]), B = P(L[b]); g.beginPath(); g.moveTo(...A); g.lineTo(...B); g.stroke(); });
+  g.fillStyle = css.getPropertyValue("--fg");
+  L.forEach((p, i) => { const q = P(p); g.beginPath(); g.arc(q[0], q[1], i === 0 ? 9 : 6, 0, 7); g.fill(); });
+}
+
+function statusText(d) {
+  if (!d) return "";
+  return { accept: "✓ aceptada: " + d.label, relabel: "✎ reetiquetada: " + d.label, reject: "✗ rechazada" }[d.decision];
+}
+
+function render() {
+  const done = items.filter(i => i.decision).length;
+  $("prog").style.width = (items.length ? 100 * done / items.length : 0) + "%";
+  $("count").textContent = `${done} de ${items.length} revisadas · ${view.length} en esta vista`;
+  const has = view.length > 0;
+  $("view").style.display = has ? "" : "none";
+  $("empty").style.display = has ? "none" : "";
+  if (!has) return;
+  const it = view[pos], t = Math.floor(it.t_s);
+  $("player").src = `https://www.youtube.com/embed/${it.video_id}?start=${t}&autoplay=1&rel=0&mute=1`;
+  $("yt").href = `https://www.youtube.com/watch?v=${it.video_id}&t=${t}s`;
+  $("sug").textContent = it.suggested;
+  $("sug2").textContent = `distancia ${it.distance} · segunda: ${it.second} · seg ${t} (${pos + 1}/${view.length})`;
+  $("kind").textContent = "búsqueda: " + it.query_kind;
+  $("handinfo").textContent = it.is_left ? "mano izquierda" : "mano derecha";
+  const d = it.decision;
+  $("status").textContent = statusText(d); $("status").className = "status " + (d ? d.decision : "");
+  $("msg").textContent = "";
+  drawHand(it);
+}
+
+const history = [];
+let busy = false;   // one save at a time, so undo always targets the last saved decision
+async function post(it, decision, label) {
+  const r = await fetch("/api/review", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sample_id: it.sample_id, decision, label: label || null, reviewer }) });
+  const j = await r.json();
+  if (!r.ok) { $("msg").textContent = j.error; return null; }
+  return j;
+}
+
+async function save(decision, label) {
+  if (busy || !needReviewer()) return;
+  busy = true;
+  const it = view[pos];
+  const j = await post(it, decision, label);
+  busy = false;
+  if (!j) return;
+  it.decision = { decision, label: j.label };
+  history.push(it);
+  if ($("filter").value !== "all") { view.splice(pos, 1); pos = Math.min(pos, Math.max(view.length - 1, 0)); }
+  render();
+}
+
+async function undo() {
+  if (busy || !needReviewer()) return;
+  const it = history.pop();
+  if (!it) { $("msg").textContent = "Nada que deshacer."; return; }
+  busy = true;
+  const ok = await post(it, "undo");
+  busy = false;
+  if (!ok) { history.push(it); return; }
+  it.decision = null;
+  if (!view.includes(it)) view.splice(pos, 0, it);
+  pos = view.indexOf(it);
+  render();
+}
+
+function openRelabel() {
+  $("relabelBox").style.display = "flex"; $("lab").value = ""; $("lab").focus();
+}
+function closeRelabel() { $("relabelBox").style.display = "none"; $("lab").blur(); }
+function confirmRelabel() {
+  const v = $("lab").value.trim();
+  if (!v) { $("msg").textContent = "Escribe la etiqueta."; return; }
+  closeRelabel(); save("relabel", v);
+}
+const move = d => { if (view.length) { pos = (pos + d + view.length) % view.length; render(); } };
+
+$("bAccept").onclick = () => save("accept", view[pos].suggested);
+$("bReject").onclick = () => save("reject");
+$("bRelabel").onclick = openRelabel;
+$("bUndo").onclick = undo;
+$("bOk").onclick = confirmRelabel;
+$("bPrev").onclick = () => move(-1);
+$("bNext").onclick = () => move(1);
+$("who").oninput = setReviewer;
+$("filter").onchange = () => { pos = 0; applyFilter(); };
+
+document.addEventListener("keydown", e => {
+  if (e.target === $("lab")) {
+    if (e.key === "Enter") confirmRelabel();
+    else if (e.key === "Escape") closeRelabel();
+    return;
+  }
+  if (e.target.tagName === "SELECT" || e.target === $("who") || e.ctrlKey || e.metaKey || !view.length) return;
+  const k = e.key.toLowerCase();
+  if (k === "a") $("bAccept").click();
+  else if (k === "x") $("bReject").click();
+  else if (k === "r") { e.preventDefault(); openRelabel(); }
+  else if (k === "z") $("bUndo").click();
+  else if (k === "arrowleft") move(-1);
+  else if (k === "arrowright") move(1);
+});
+
+(async () => {
+  $("who").value = reviewer;
+  const r = await fetch("/api/queue"); const j = await r.json();
+  items = j.items;
+  $("labels").innerHTML = j.labels.map(l => `<option value="${l}">`).join("");
+  applyFilter();
+})();
+</script>
+</body>
+</html>
