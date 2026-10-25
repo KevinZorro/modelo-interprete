@@ -81,13 +81,14 @@
     <div class="actions">
       <button id="bAccept">Aceptar sugerida <kbd>A</kbd></button>
       <button id="bRelabel">Reetiquetar <kbd>R</kbd></button>
+      <button id="bNone">No es seña <kbd>N</kbd></button>
       <button id="bReject">Rechazar <kbd>X</kbd></button>
       <button id="bUndo">Deshacer <kbd>Z</kbd></button>
       <button id="bPrev">← Anterior</button>
       <button id="bNext">Siguiente →</button>
     </div>
     <div id="relabelBox">
-      <input id="lab" list="labels" placeholder="letra, número o no_es_seña" autocomplete="off">
+      <input id="lab" list="labels" placeholder="letra, número o none (no es seña)" autocomplete="off">
       <datalist id="labels"></datalist>
       <button id="bOk">Guardar <kbd>Enter</kbd></button>
       <span class="help">Esc cancela</span>
@@ -97,7 +98,7 @@
   <div id="empty" class="card" style="display:none">No quedan muestras con este filtro. Cuando termines, ejecuta
     <code>python -m lsc70.review_queue export --out data/scraper</code>.</div>
 
-  <p class="help">Atajos: <kbd>A</kbd> acepta · <kbd>R</kbd> reetiqueta · <kbd>X</kbd> rechaza ·
+  <p class="help">Atajos: <kbd>A</kbd> acepta · <kbd>R</kbd> reetiqueta · <kbd>N</kbd> no es seña · <kbd>X</kbd> rechaza ·
     <kbd>Z</kbd> deshace · <kbd>←</kbd> <kbd>→</kbd> navegan. La sugerencia solo ordena la cola:
     la etiqueta es la que tú decidas. El clip es el reproductor de la plataforma, no se guarda nada.</p>
 </main>
@@ -215,6 +216,7 @@ function confirmRelabel() {
 const move = d => { if (view.length) { pos = (pos + d + view.length) % view.length; render(); } };
 
 $("bAccept").onclick = () => save("accept", view[pos].suggested);
+$("bNone").onclick = () => save("relabel", "none");   // same name as the training class
 $("bReject").onclick = () => save("reject");
 $("bRelabel").onclick = openRelabel;
 $("bUndo").onclick = undo;
@@ -233,6 +235,7 @@ document.addEventListener("keydown", e => {
   if (e.target.tagName === "SELECT" || e.target === $("who") || e.ctrlKey || e.metaKey || !view.length) return;
   const k = e.key.toLowerCase();
   if (k === "a") $("bAccept").click();
+  else if (k === "n") $("bNone").click();
   else if (k === "x") $("bReject").click();
   else if (k === "r") { e.preventDefault(); openRelabel(); }
   else if (k === "z") $("bUndo").click();
