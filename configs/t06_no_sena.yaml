@@ -1,0 +1,13 @@
+# T-06: widen the "none" class. Hypothesis: the false acceptance (8-13 % in T-05) is limited by how
+# few kinds of non-sign the model has seen; synthetic hard negatives built from training people
+# (transitions between letters, finger hybrids) lower FA on REAL negatives at the same FR budget.
+# One change at a time vs the T-05 control ("none" variant). Same models, folds and seeds as T-05.
+seeds: [0, 1, 2]
+negatives: negativos_reposo.npz
+n_synthetic: 1000          # per training fold; fixed before looking at results
+fr_budget: 0.08            # genuine frames rejected; 2 points under the 10 % goal as a margin
+policies: [argmax, global, perclass]
+variants: [none, transition, hybrid]
+models:
+  - {name: logreg, kind: logreg, stochastic: false}
+  - {name: mlp, kind: mlp, stochastic: true}

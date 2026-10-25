@@ -95,6 +95,18 @@
       "commit": "f3b2f0d (+T-05 branch)",
       "purpose": "T-05 comparison on frozen test, once",
       "date": "2026-10-25"
+    },
+    {
+      "version": "logreg:none+perclass-t06",
+      "commit": "5df83b6 (+T-06 branch)",
+      "purpose": "T-06 thresholds on frozen test, once",
+      "date": "2026-10-25"
+    },
+    {
+      "version": "mlp:none+perclass-t06",
+      "commit": "5df83b6 (+T-06 branch)",
+      "purpose": "T-06 thresholds on frozen test, once",
+      "date": "2026-10-25"
     }
   ]
 }
