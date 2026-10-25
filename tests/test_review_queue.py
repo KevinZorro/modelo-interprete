@@ -100,3 +100,13 @@ def test_export_adds_pose_class_for_aliases(tmp_path):
     rq.export_validated(tmp_path)
     val = rq.read_jsonl(tmp_path / "validated.jsonl")
     assert val[0]["label"] == "1" and val[0]["pose"] == "F"
+
+
+def test_motion_scores_flag_moving_sign():
+    a, b = [1.0] + [0.0] * 62, [0.0, 1.0] + [0.0] * 61
+    still = [{"frame": i * 10, "features": a} for i in range(3)]
+    assert rq.motion_scores(still) == [0.0, 0.0, 0.0]
+    moving = [{"frame": 0, "features": a}, {"frame": 10, "features": b}, {"frame": 500, "features": a}]
+    m = rq.motion_scores(moving)
+    assert m[0] > rq.DYNAMIC_MOTION and m[1] > rq.DYNAMIC_MOTION and m[2] == 0.0   # far row has no neighbours
+    assert rq.motion_scores([]) == []

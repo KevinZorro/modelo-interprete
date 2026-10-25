@@ -20,7 +20,7 @@
   .row { display:flex; flex-wrap:wrap; gap:12px }
   .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px }
   .video { flex:1 1 480px; aspect-ratio:16/9; min-width:280px; padding:0; overflow:hidden }
-  .video iframe { width:100%; height:100%; border:0 }
+  #player, .video iframe { width:100%; height:100%; border:0 }
   .hand { flex:0 0 260px }
   canvas { width:240px; height:240px; display:block; margin:0 auto }
   .info { margin-top:12px; display:flex; flex-wrap:wrap; gap:8px 20px; align-items:baseline }
@@ -64,8 +64,7 @@
 
   <div id="view" style="display:none">
     <div class="row">
-      <div class="card video"><iframe id="player" allow="autoplay; encrypted-media; fullscreen"
-        referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>
+      <div class="card video"><div id="player"></div></div>
       <div class="card hand">
         <canvas id="cv" width="480" height="480"></canvas>
         <div class="help" style="text-align:center" id="handinfo"></div>
@@ -76,11 +75,14 @@
       <span class="help" id="sug2"></span>
       <span class="tag" id="kind"></span>
       <span class="status" id="status"></span>
+      <span class="tag" id="mode"></span>
       <a id="yt" target="_blank" rel="noopener">abrir en YouTube</a>
     </div>
     <div class="actions">
       <button id="bAccept">Aceptar sugerida <kbd>A</kbd></button>
       <button id="bRelabel">Reetiquetar <kbd>R</kbd></button>
+      <button id="bMode">Quieta / en bucle <kbd>D</kbd></button>
+      <button id="bPlay">Pausa / play <kbd>␣</kbd></button>
       <button id="bNone">No es seña <kbd>N</kbd></button>
       <button id="bReject">Rechazar <kbd>X</kbd></button>
       <button id="bUndo">Deshacer <kbd>Z</kbd></button>
@@ -99,7 +101,7 @@
     <code>python -m lsc70.review_queue export --out data/scraper</code>.</div>
 
   <p class="help">Atajos: <kbd>A</kbd> acepta · <kbd>R</kbd> reetiqueta · <kbd>N</kbd> no es seña · <kbd>X</kbd> rechaza ·
-    <kbd>Z</kbd> deshace · <kbd>←</kbd> <kbd>→</kbd> navegan. La sugerencia solo ordena la cola:
+    <kbd>Z</kbd> deshace · <kbd>D</kbd> quieta/bucle · <kbd>␣</kbd> pausa · <kbd>,</kbd> <kbd>.</kbd> avanza 0,1 s · <kbd>←</kbd> <kbd>→</kbd> navegan. La sugerencia solo ordena la cola:
     la etiqueta es la que tú decidas. El clip es el reproductor de la plataforma, no se guarda nada.</p>
 </main>
 <script>
@@ -146,6 +148,49 @@ function statusText(d) {
   return { accept: "✓ aceptada: " + d.label, relabel: "✎ reetiquetada: " + d.label, reject: "✗ rechazada" }[d.decision];
 }
 
+// ----- player: still sign = paused on the sampled frame; moving sign = looped window -----
+let ytp = null, ytReady = false, cur = null, loopTimer = null;
+const PRE = 1.0, POST = 2.5;
+window.onYouTubeIframeAPIReady = () => {
+  ytp = new YT.Player("player", { width: "100%", height: "100%",
+    playerVars: { rel: 0, playsinline: 1, origin: location.origin },
+    events: { onReady: () => { ytReady = true; ytp.mute(); loadClip(); }, onStateChange: onYtState } });
+};
+const tag = document.createElement("script"); tag.src = "https://www.youtube.com/iframe_api"; document.head.appendChild(tag);
+
+function dyn(it) { return it.dynamicOverride !== undefined ? it.dynamicOverride : it.dynamic; }
+function loadClip() {
+  if (!ytReady || !cur) return;
+  clearInterval(loopTimer);
+  const it = cur, start = dyn(it) ? Math.max(0, it.t_s - PRE) : it.t_s;
+  it.settled = false;
+  ytp.loadVideoById({ videoId: it.video_id, startSeconds: start });
+  $("mode").textContent = dyn(it) ? "seña en movimiento: bucle" : "seña quieta: pausada en el fotograma";
+}
+function onYtState(e) {
+  if (!cur || e.data !== YT.PlayerState.PLAYING || cur.settled) return;
+  if (dyn(cur)) {
+    cur.settled = true;
+    loopTimer = setInterval(() => {
+      if (ytp.getCurrentTime() > cur.t_s + POST) ytp.seekTo(Math.max(0, cur.t_s - PRE), true);
+    }, 150);
+  } else {
+    cur.settled = true;
+    ytp.seekTo(cur.t_s, true); ytp.pauseVideo();
+  }
+}
+function toggleMode() { if (!cur) return; cur.dynamicOverride = !dyn(cur); loadClip(); }
+function togglePlay() {
+  if (!ytReady) return;
+  const st = ytp.getPlayerState();
+  if (st === YT.PlayerState.PLAYING) ytp.pauseVideo(); else ytp.playVideo();
+}
+function stepFrame(dt) {
+  if (!ytReady || !cur) return;
+  ytp.pauseVideo(); clearInterval(loopTimer);
+  ytp.seekTo(Math.max(0, ytp.getCurrentTime() + dt), true);
+}
+
 function render() {
   const done = items.filter(i => i.decision).length;
   $("prog").style.width = (items.length ? 100 * done / items.length : 0) + "%";
@@ -155,7 +200,7 @@ function render() {
   $("empty").style.display = has ? "none" : "";
   if (!has) return;
   const it = view[pos], t = Math.floor(it.t_s);
-  $("player").src = `https://www.youtube.com/embed/${it.video_id}?start=${t}&autoplay=1&rel=0&mute=1`;
+  cur = it; loadClip();
   $("yt").href = `https://www.youtube.com/watch?v=${it.video_id}&t=${t}s`;
   $("sug").textContent = it.suggested_names || it.suggested;
   $("sug2").textContent = `distancia ${it.distance} · segunda: ${it.second} · seg ${t} (${pos + 1}/${view.length})`;
@@ -216,6 +261,8 @@ function confirmRelabel() {
 const move = d => { if (view.length) { pos = (pos + d + view.length) % view.length; render(); } };
 
 $("bAccept").onclick = () => save("accept", view[pos].suggested);
+$("bMode").onclick = toggleMode;
+$("bPlay").onclick = togglePlay;
 $("bNone").onclick = () => save("relabel", "none");   // same name as the training class
 $("bReject").onclick = () => save("reject");
 $("bRelabel").onclick = openRelabel;
@@ -235,6 +282,10 @@ document.addEventListener("keydown", e => {
   if (e.target.tagName === "SELECT" || e.target === $("who") || e.ctrlKey || e.metaKey || !view.length) return;
   const k = e.key.toLowerCase();
   if (k === "a") $("bAccept").click();
+  else if (k === "d") toggleMode();
+  else if (k === " ") { e.preventDefault(); togglePlay(); }
+  else if (k === ",") stepFrame(-0.1);
+  else if (k === ".") stepFrame(0.1);
   else if (k === "n") $("bNone").click();
   else if (k === "x") $("bReject").click();
   else if (k === "r") { e.preventDefault(); openRelabel(); }

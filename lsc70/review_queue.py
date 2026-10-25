@@ -95,6 +95,26 @@ def dedupe_segments(rows: list, threshold: float = 0.06, long_segment: int = 8) 
     return keep
 
 
+DYNAMIC_MOTION = 0.15   # cosine distance to neighbours within the window above this = moving sign
+
+
+def motion_scores(rows: list, window_frames: int = 30) -> list:
+    """Per row: largest cosine distance to other rows of the same video within +-window_frames.
+
+    A pose that holds still has near-zero motion; a moving sign (or a hand in transit)
+    scores high. Rows without neighbours score 0.0 (nothing to compare with).
+    """
+    if not rows:
+        return []
+    F = _unit(np.asarray([r["features"] for r in rows], dtype=np.float64))
+    frames = np.asarray([r["frame"] for r in rows])
+    out = []
+    for i in range(len(rows)):
+        near = np.flatnonzero((np.abs(frames - frames[i]) <= window_frames) & (np.arange(len(rows)) != i))
+        out.append(round(float(np.max(1.0 - F[near] @ F[i])), 4) if len(near) else 0.0)
+    return out
+
+
 def review_items(out: Path) -> list:
     """Queue joined with landmarks, deduplicated, numbers first then rest, with any decision."""
     queue = {q["sample_id"]: q for q in read_jsonl(out / "review_queue.jsonl")}
@@ -106,9 +126,12 @@ def review_items(out: Path) -> list:
     items = []
     for rows in by_video.values():
         rows.sort(key=lambda r: r["frame"])
+        motion = {sample_id(r): m for r, m in zip(rows, motion_scores(rows))}
         for r in dedupe_segments(rows):
             q = queue[sample_id(r)]
+            m = motion[q["sample_id"]]
             items.append({**q, "video_id": r["video_id"], "frame": r["frame"],
+                          "motion": m, "dynamic": m > DYNAMIC_MOTION,
                           "is_left": r["is_left"], "landmarks": r["landmarks"],
                           "decision": decided.get(q["sample_id"])})
     items.sort(key=lambda x: (KIND_PRIORITY.get(x["query_kind"], 9), x["video_id"], x["frame"]))
