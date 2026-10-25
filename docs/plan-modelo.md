@@ -22,8 +22,8 @@ Estados: pendiente, en curso, en revisión, hecha y bloqueada.
 | T-04 | Crear el módulo único de limpieza y normalización con pruebas y vectores de prueba | M2 | Claude Code | T-01 | hecha | Pruebas en verde y contrato de entrada documentado |
 | T-05 | Entrenar baselines y comparar modelos con tres semillas y MLflow | M2 | Claude Code | T-03, T-04 | en revisión | Tabla comparativa contra el modelo actual |
 | T-06 | Ampliar la clase "no seña" y calibrar umbrales por clase | M2 | Claude Code | T-05 | hecha | Curva de falsa aceptación contra falso rechazo y umbral elegido con su porqué |
-| T-07 | Ajustar hiperparámetros con Optuna sobre el mejor modelo | M2 | Claude Code | T-06 | en revisión | Mejora en validación confirmada una vez en test |
-| T-08 | Exportar a TFLite y medir paridad y latencia | M2 | Claude Code | T-07 | pendiente | Diferencia máxima de salidas y latencia en un celular de gama media |
+| T-07 | Ajustar hiperparámetros con Optuna sobre el mejor modelo | M2 | Claude Code | T-06 | hecho | Mejora en validación confirmada una vez en test |
+| T-08 | Exportar a TFLite y medir paridad y latencia | M2 | Claude Code | T-07 | en revisión (paridad cumplida; falta latencia en celular) | Diferencia máxima de salidas y latencia en un celular de gama media |
 | T-09 | Diseñar el modelo dinámico (datos, formato de secuencias, arquitectura y enrutador) | M3 | Chat | T-02 | pendiente | Documento de diseño aprobado por Kevin |
 | T-10 | Construir el pipeline de secuencias y entrenar el modelo dinámico v1 | M3 | Claude Code | T-09 | pendiente | Métricas del dinámico con el mismo protocolo |
 | T-11 | Implementar el enrutador estático y dinámico y evaluar el sistema completo | M3 | Claude Code | T-08, T-10 | pendiente | Métricas del sistema completo |

@@ -1,0 +1,34 @@
+{
+  "seed": 1,
+  "params": {
+    "units1": 192,
+    "units2": 160,
+    "dropout1": 0.3307098111215984,
+    "dropout2": 0.5018868396817279,
+    "lr": 0.001262035879351083,
+    "batch": 64,
+    "l2": 0.0008592672998064725
+  },
+  "model_bytes": 193188,
+  "unquantized": true,
+  "contract": "v1",
+  "contract_vectors": {
+    "n": 3,
+    "max_abs_diff": 2.682209014892578e-07,
+    "argmax_equal_pct": 100.0,
+    "decision_equal_pct": 100.0
+  },
+  "dev_frames": {
+    "n": 2000,
+    "max_abs_diff": 8.344650268554688e-07,
+    "argmax_equal_pct": 100.0,
+    "decision_equal_pct": 100.0
+  },
+  "latency": {
+    "p50_ms": 0.002948999991758683,
+    "p95_ms": 0.003245049958877644,
+    "threads": 1,
+    "host": "cloud container CPU (NOT a phone)"
+  },
+  "pass_max_diff": true
+}
