@@ -1,0 +1,21 @@
+# T-07: tune the T-06 winner (MLP + per-class threshold, no synthetic negatives) with Optuna.
+# Hypothesis: a better-regularised/sized MLP lowers dev false acceptance at the same frame-rejection
+# budget (8 %) without losing F1. Selection uses ONLY the 5 dev folds (55 people), cross-fitted
+# thresholds, search seed 0; the winner is re-scored with fresh seeds and the test is used once.
+study_name: T-07-optuna
+n_trials: 30
+sampler_seed: 7
+search_seed: 0
+confirm_seeds: [1, 2, 3]      # not used during the search, so the confirmation is not tuned on
+negatives: negativos_reposo.npz
+fr_budget: 0.08               # same as T-06
+f1_floor: 0.86                # penalty if dev F1 macro falls below (control 0.869)
+fr_toma_ceiling: 0.10         # penalty above the project goal
+space:
+  units1: [128, 512]          # int, step 64
+  units2: [64, 256]           # int, step 32
+  dropout1: [0.1, 0.6]
+  dropout2: [0.1, 0.6]
+  lr: [0.0003, 0.003]         # log scale
+  batch: [16, 32, 64]
+  l2: [0.00001, 0.01]         # log scale

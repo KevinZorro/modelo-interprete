@@ -107,6 +107,12 @@
       "commit": "5df83b6 (+T-06 branch)",
       "purpose": "T-06 thresholds on frozen test, once",
       "date": "2026-10-25"
+    },
+    {
+      "version": "T-07 mlp-optuna (control+best, seeds 1-3)",
+      "commit": "ef7b0da+branch",
+      "purpose": "T-07 confirmation of Optuna-tuned MLP with per-class thresholds",
+      "date": "2026-10-25"
     }
   ]
 }

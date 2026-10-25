@@ -110,3 +110,10 @@ resultados negativos. Léelo antes de proponer un experimento para no repetir.
 - Config: `configs/t06_no_sena.yaml` · 55 personas, 5 folds · commit `5df83b6`+rama · MLflow `T-06-no-sena`.
 - Resultado: sintéticos no ayudan (MLP FA 10.1 / 10.9 % vs 8.1 % del control con umbral; logreg 9.8 / 9.5 % pero F1 −1 a −3 pts). El umbral por clase baja la FA del MLP 11.1 → 8.1 % con FR toma 4.7 %. Test (una vez): MLP+umbral FA 5.8 %, FR 7.8 %.
 - Conclusión: hipótesis rechazada. Falta variedad REAL (mano en reposo 10.5 % aceptada; números 47 %). Detalle en `docs/reports/T-06.md`.
+
+## 2026-10-25 · T-07: Optuna sobre el MLP con umbral por clase (dev folds, 3 semillas)
+- Hipótesis: un MLP mejor dimensionado/regularizado baja la FA dev con el mismo presupuesto FR 8 % sin perder F1.
+- Cambio: solo hiperparámetros (unidades, dropout, lr, batch, L2); datos, features y umbrales como T-06. 30 trials TPE en semilla 0; confirmación con semillas 1-3 no vistas por la búsqueda.
+- Config: `configs/t07_optuna.yaml` · 55 personas, 5 folds · commit `ef7b0da`+rama · MLflow `T-07-optuna`.
+- Resultado: FA dev 8.4 → 6.3 % (−1.7/−2.5/−2.2 por semilla), F1 0.870 → 0.875. Test (una vez): FA 7.2 → 6.1 %, FR toma 8.5 → 7.2 %, F1 0.892 → 0.910.
+- Conclusión: mejora pequeña pero consistente; FA < 5 % sigue sin cumplirse. El cuello son los negativos reales. Detalle en `docs/reports/T-07.md`.
