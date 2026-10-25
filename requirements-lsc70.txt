@@ -8,3 +8,4 @@ scikit-learn>=1.4
 numpy>=1.26
 pytest>=8        # pruebas: pytest tests/ -q   (-m "not slow" para saltar el entrenamiento)
 ruff>=0.6
+yt-dlp>=2025.1   # solo para lsc70.scraper (descubrir y bajar temporalmente videos públicos)

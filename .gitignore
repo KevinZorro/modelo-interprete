@@ -9,3 +9,6 @@ hand_landmarker.task
 .ruff_cache/
 mlflow.db
 mlruns/
+
+# Scraper output (landmarks + provenance; reviewed copies get promoted by hand)
+data/scraper/
