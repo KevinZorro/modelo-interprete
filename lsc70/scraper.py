@@ -167,8 +167,12 @@ def _ytdlp_download(url: str, directory: str) -> str:
 
     opts = {
         "quiet": True, "noplaylist": True, "outtmpl": f"{directory}/v.%(ext)s",
-        "format": f"worst[height>={MAX_HEIGHT}]/best[height<={MAX_HEIGHT}]/worst",
+        # video-only H.264 first: audio is never fetched, and OpenCV decodes it reliably
+        "format": (f"bv*[height<={MAX_HEIGHT}][vcodec^=avc1]/bv*[height<={MAX_HEIGHT}]"
+                   f"/worst[height>={MAX_HEIGHT}]/worst"),
         "retries": 2,
+        # YouTube player signatures need a JS runtime; without one most formats are missing.
+        "js_runtimes": {"node": {}},
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
         ydl.download([url])
