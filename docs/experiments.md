@@ -3,6 +3,19 @@
 Memoria del proyecto: una entrada por experimento, la más reciente arriba. Incluye los
 resultados negativos. Léelo antes de proponer un experimento para no repetir.
 
+## 2026-10-25 · T-03 línea base del `.tflite` versionado (28 clases) en el test congelado
+- Hipótesis: el modelo actual no cumple FA < 5 % con FR < 10 %; medirlo con protocolo fijo.
+- Cambio: sin entrenar. Test de 15 personas congelado por hash (`configs/test_freeze.json`,
+  declarado **contaminado**) y folds de desarrollo sobre las 55 personas de train.
+  `python -m lsc70.baseline` (modelo fijo, sin semillas; bootstrap por persona, semilla 0).
+- Resultado (404 tomas): F1 macro 0.981 (IC95 0.966-0.994), top-1 0.980, FR 0.2 %, error entre
+  letras 1.7 %. FA por frame sobre 600 negativos limpios: 33.8 % (IC 30.2-37.7, optimista);
+  umbral de probabilidad 0.7: FA 5.2 % pero FR 19.1 %; 0.9: FA 1.5 % y FR 38.1 %.
+- Conclusión: criterio de M1 no cumplido en FA. Los 15 del test son **más fáciles** que el
+  resto (el mismo modelo acierta 98.0 % en test y 94.5 % en train; el OOF de 70 personas da
+  88.8 %): el test no sirve de titular, la selección va por folds de desarrollo (T-05).
+  Los números del test se cuentan aparte: el modelo los acepta como letra 93 % de las veces.
+
 ## 2026-10-02 · Modelo final 37 clases + `no_es_seña` (ANH, 600 negativos limpios)
 - Hipótesis: un modelo con números y clase de rechazo se puede exportar y desplegar.
 - Cambio: `lsc70.exportar_final` (5 folds por participante para medir el rechazo, entrenamiento
