@@ -7,3 +7,5 @@ resultados/
 hand_landmarker.task
 .pytest_cache/
 .ruff_cache/
+mlflow.db
+mlruns/

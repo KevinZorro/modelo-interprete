@@ -96,3 +96,10 @@ resultados negativos. Léelo antes de proponer un experimento para no repetir.
   `three2`=L, `one`=S) e inflaban los umbrales; excluidas.
 - Conclusión: la prueba con cámara que excluyó C, E, H, K, M, N resultó inválida (se
   ejecutaban mal las señas). Falta una prueba con protocolo (`PROTOCOLO_prueba_camara.md`).
+
+## 2026-10-25 · T-05: baselines y escala por palma (dev folds, 3 semillas)
+- Hipótesis: escalar por palma (landmark 9) en vez de norma máxima baja la FA sin perder F1.
+- Cambio: solo las features (v1→v2) en la red del notebook v8; control `mlp_v1`. Además logreg y SVM RBF.
+- Config: `configs/t05_baselines.yaml` · 5 folds por persona sobre 55 train (`dev_fold_de`) · semillas 0-2 · commit `f3b2f0d`+rama · MLflow `T-05-baselines`.
+- Resultado: v2 − v1 top-1 −0.1 pt (IC95 −1.2, +0.9); F1 0.870 vs 0.872. logreg 0.885, SVM 0.860. FA 8–13 % en todos. En test (una vez): logreg 0.917, MLP v1 0.910.
+- Conclusión: v2 no ayuda; el MLP no supera a logreg; la FA depende de los negativos. El 0.981 del `.tflite` viejo estaba inflado por haber visto el test. Detalle en `docs/reports/T-05.md`.
