@@ -18,7 +18,7 @@ Estados: pendiente, en curso, en revisión, hecha y bloqueada.
 | --- | --- | --- | --- | --- | --- | --- |
 | T-01 | Auditar el repo del modelo (preprocesamiento, entrenamiento, evaluación y exportación) y crear CLAUDE.md y docs/ si faltan | M1 | Claude Code | — | en revisión | Informe del estado actual con deudas y comandos que funcionan |
 | T-02 | Inventariar los datasets con su licencia, escribir la datasheet y redactar los correos para pedir permiso comercial | M1 | Chat | — | pendiente | Tabla de fuentes con licencia, uso permitido y acción |
-| T-03 | Crear el split por persona, congelar el test y volver a medir el modelo actual | M1 | Claude Code | T-01 | pendiente | F1 macro, matriz de confusión, falsa aceptación y falso rechazo en test por persona |
+| T-03 | Crear el split por persona, congelar el test y volver a medir el modelo actual | M1 | Claude Code | T-01 | en revisión | F1 macro, matriz de confusión, falsa aceptación y falso rechazo en test por persona |
 | T-04 | Crear el módulo único de limpieza y normalización con pruebas y vectores de prueba | M2 | Claude Code | T-01 | pendiente | Pruebas en verde y contrato de entrada documentado |
 | T-05 | Entrenar baselines y comparar modelos con tres semillas y MLflow | M2 | Claude Code | T-03, T-04 | pendiente | Tabla comparativa contra el modelo actual |
 | T-06 | Ampliar la clase "no seña" y calibrar umbrales por clase | M2 | Claude Code | T-05 | pendiente | Curva de falsa aceptación contra falso rechazo y umbral elegido con su porqué |
