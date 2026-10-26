@@ -141,8 +141,10 @@ def review_items(out: Path) -> list:
         for r in dedupe_segments(rows):
             q = queue[sample_id(r)]
             items.append({**q, "video_id": r["video_id"], "frame": r["frame"],
-                          "dynamic": q["suggested"] in dynamic, "held_s": r["held_s"],
-                          "teaching": r["held_s"] >= HOLD_S or q["suggested"] in dynamic,
+                          "dynamic": q.get("media") != "image" and q["suggested"] in dynamic,
+                          "held_s": r["held_s"],
+                          "teaching": q.get("media") == "image" or r["held_s"] >= HOLD_S
+                          or q["suggested"] in dynamic,
                           "is_left": r["is_left"], "landmarks": r["landmarks"],
                           "track": track_around(rows, _t(r)),
                           "decision": decided.get(q["sample_id"])})
@@ -161,7 +163,9 @@ def build(out: Path, refs: Path) -> int:
         cent, names = load_refs(refs)
         ranked = rank_samples(np.asarray([r["features"] for r in rows]), cent, names)
         queue = [{"sample_id": sample_id(r), "url": r["url"], "t_s": r["t_s"],
-                  "query_kind": r["query_kind"], **k,
+                  "query_kind": r["query_kind"], "media": r.get("media", "video"),
+                  "image_url": r.get("image_url"), "hint": r.get("hint"), "title": r.get("title"),
+                  "license": r.get("license"), **k,
                   "suggested_names": alias_poses.display_names(k["suggested"])}
                  for r, k in zip(rows, ranked)]
         queue.sort(key=lambda q: (q["distance"], -q["margin"]))
@@ -182,7 +186,8 @@ def write_sheet(out: Path, csv_path: Optional[Path] = None) -> Path:
         w = csv.DictWriter(f, fieldnames=SHEET_COLS)
         w.writeheader()
         for q in read_jsonl(out / "review_queue.jsonl"):
-            w.writerow({"sample_id": q["sample_id"], "url_at_time": url_at(q["url"], q["t_s"]),
+            w.writerow({"sample_id": q["sample_id"],
+                        "url_at_time": q["url"] if q.get("media") == "image" else url_at(q["url"], q["t_s"]),
                         "query_kind": q["query_kind"], "suggested": q["suggested"],
                         "distance": q["distance"], "second": q["second"],
                         "decision": done.get(q["sample_id"], {}).get("decision", ""),
