@@ -55,7 +55,8 @@ def test_build_never_sets_label_and_sheet_roundtrip(tmp_path):
     val = rq.read_jsonl(tmp_path / "validated.jsonl")
     assert {v["label"] for v in val} == {rows[0]["suggested"], "C"}
     assert all(v["reviewer"] == "Ana" and v["review_status"] == "validated" for v in val)
-    assert rq.build(tmp_path, tmp_path / "refs.npz") == 0         # reviewed samples leave the queue
+    assert rq.build(tmp_path, tmp_path / "refs.npz") == 3         # a rebuild keeps reviewed samples...
+    assert all(i["decision"] is None or i["decision"]["decision"] != "undo" for i in rq.review_items(tmp_path))
 
 
 def test_bad_decisions_are_rejected(tmp_path):
@@ -90,6 +91,15 @@ def test_undo_cancels_and_review_items_order(tmp_path):
     assert rq.build(tmp_path, tmp_path / "refs.npz") == 3
     with pytest.raises(ValueError):
         rq.record_review(tmp_path, sid, "relabel", "", "Kevin")
+
+
+def test_rebuild_keeps_review_progress(tmp_path):
+    _write_run(tmp_path, n=3)
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    rq.record_review(tmp_path, "v:20", "accept", "A", "Kevin")
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    done = [i for i in rq.review_items(tmp_path) if i["decision"]]
+    assert [d["sample_id"] for d in done] == ["v:20"] and done[0]["decision"]["label"] == "A"
 
 
 def test_export_adds_pose_class_for_aliases(tmp_path):
@@ -128,3 +138,17 @@ def test_track_around_keeps_only_the_loop_window():
     tr = rq.track_around(rows, 4.0)
     assert [x[0] for x in tr] == [3.0, 4.0, 5.0, 6.0]            # 4-1 .. 4+2.5
     assert len(tr[0][1]) == 21 and len(tr[0][1][0]) == 2          # x, y only
+
+
+def test_decided_sample_stays_visible_even_if_dedupe_skips_it(tmp_path):
+    _write_run(tmp_path, n=3)
+    rows = rq.read_jsonl(tmp_path / "landmarks.jsonl")
+    for r in rows:
+        r["t_s"] = r["frame"] / 30      # close enough in time to share a segment
+    (tmp_path / "landmarks.jsonl").write_text("
+".join(json.dumps(r) for r in rows), encoding="utf-8")
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    shown = {i["sample_id"] for i in rq.review_items(tmp_path)}
+    skipped = ({"v:0", "v:10", "v:20"} - shown).pop()
+    rq.record_review(tmp_path, skipped, "accept", "A", "Kevin")
+    assert skipped in {i["sample_id"] for i in rq.review_items(tmp_path)}

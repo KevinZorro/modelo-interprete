@@ -138,7 +138,11 @@ def review_items(out: Path) -> list:
     items = []
     for rows in by_video.values():
         rows.sort(key=lambda r: r["frame"])
-        for r in dedupe_segments(rows):
+        shown = dedupe_segments(rows)
+        have = {sample_id(r) for r in shown}
+        # a decided sample always stays visible, even if a newer dedupe would pick another one
+        shown += [{**r, "held_s": 0.0} for r in rows if sample_id(r) in decided and sample_id(r) not in have]
+        for r in shown:
             q = queue[sample_id(r)]
             items.append({**q, "video_id": r["video_id"], "frame": r["frame"],
                           "dynamic": q.get("media") != "image" and q["suggested"] in dynamic,
@@ -154,10 +158,12 @@ def review_items(out: Path) -> list:
 
 
 def build(out: Path, refs: Path) -> int:
-    """Write review_queue.jsonl: pending, unreviewed samples, closest to a reference first."""
-    reviewed = set(latest_reviews(out))
-    rows = [r for r in read_jsonl(out / "landmarks.jsonl")
-            if r.get("review_status") == "pending" and sample_id(r) not in reviewed]
+    """Write review_queue.jsonl: every scraped sample, closest to a reference first.
+
+    Reviewed samples stay in the queue: the page joins their decision from reviews.jsonl, so
+    progress survives a rebuild (dropping them hid the work already done).
+    """
+    rows = [r for r in read_jsonl(out / "landmarks.jsonl") if r.get("review_status") == "pending"]
     queue = []
     if rows:
         cent, names = load_refs(refs)
