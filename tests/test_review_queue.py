@@ -145,8 +145,7 @@ def test_decided_sample_stays_visible_even_if_dedupe_skips_it(tmp_path):
     rows = rq.read_jsonl(tmp_path / "landmarks.jsonl")
     for r in rows:
         r["t_s"] = r["frame"] / 30      # close enough in time to share a segment
-    (tmp_path / "landmarks.jsonl").write_text("
-".join(json.dumps(r) for r in rows), encoding="utf-8")
+    (tmp_path / "landmarks.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
     rq.build(tmp_path, tmp_path / "refs.npz")
     shown = {i["sample_id"] for i in rq.review_items(tmp_path)}
     skipped = ({"v:0", "v:10", "v:20"} - shown).pop()
