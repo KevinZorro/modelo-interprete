@@ -11,6 +11,7 @@ exists only after a reviewer who knows LSC writes it. Nothing here sets `label` 
 import argparse
 import csv
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -126,6 +127,36 @@ def track_around(rows: list, t: float) -> list:
             for r in rows if t - TRACK_PRE_S <= _t(r) <= t + TRACK_POST_S]
 
 
+RELEVANT_TITLE = re.compile(
+    r"abecedario|alfabeto|alphabet|spelling|deletre|dactilolog|\bletras?\b|n[uú]meros?\b|numbers?\b"
+    r"|\bcontar\b|counting", re.I)
+OTHER_LANGUAGE = re.compile(
+    r"\basl\b|american|mexican|\blsm\b|ecuador|argentin|\blse\b|espa[ñn]ola|universal", re.I)
+
+
+def is_relevant_title(title: Optional[str]) -> bool:
+    """A video is worth reviewing when its title is about the alphabet or numbers and does
+    not name another sign language. Titles only: it filters the queue, it never labels."""
+    t = title or ""
+    return bool(RELEVANT_TITLE.search(t)) and not OTHER_LANGUAGE.search(t)
+
+
+def load_titles(out: Path) -> dict:
+    return {c["video_id"]: c.get("title") for c in read_jsonl(out / "candidates.jsonl")}
+
+
+def load_flags(out: Path) -> dict:
+    """{video_id: embeddable bool}; the last record per video wins."""
+    return {f["video_id"]: f["embeddable"] for f in read_jsonl(out / "video_flags.jsonl")}
+
+
+def set_flag(out: Path, video_id: str, embeddable: bool, how: str = "page") -> None:
+    rec = {"video_id": video_id, "embeddable": bool(embeddable), "how": how,
+           "checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    with (out / "video_flags.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
 def review_items(out: Path) -> list:
     """Queue joined with landmarks, deduplicated, numbers first then rest, with any decision."""
     queue = {q["sample_id"]: q for q in read_jsonl(out / "review_queue.jsonl")}
@@ -135,6 +166,7 @@ def review_items(out: Path) -> list:
             by_video.setdefault(r["video_id"], []).append(r)
     decided = latest_reviews(out)
     dynamic = load_dynamic_signs()
+    titles, flags = load_titles(out), load_flags(out)
     items = []
     for rows in by_video.values():
         rows.sort(key=lambda r: r["frame"])
@@ -147,6 +179,9 @@ def review_items(out: Path) -> list:
             items.append({**q, "video_id": r["video_id"], "frame": r["frame"],
                           "dynamic": q.get("media") != "image" and q["suggested"] in dynamic,
                           "held_s": r["held_s"],
+                          "title": q.get("title") or titles.get(r["video_id"]),
+                          "relevant": q.get("media") == "image" or is_relevant_title(titles.get(r["video_id"])),
+                          "embeddable": flags.get(r["video_id"]),
                           "teaching": q.get("media") == "image" or r["held_s"] >= HOLD_S
                           or q["suggested"] in dynamic,
                           "is_left": r["is_left"], "landmarks": r["landmarks"],

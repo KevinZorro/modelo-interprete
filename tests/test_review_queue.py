@@ -151,3 +151,24 @@ def test_decided_sample_stays_visible_even_if_dedupe_skips_it(tmp_path):
     skipped = ({"v:0", "v:10", "v:20"} - shown).pop()
     rq.record_review(tmp_path, skipped, "accept", "A", "Kevin")
     assert skipped in {i["sample_id"] for i in rq.review_items(tmp_path)}
+
+
+def test_relevance_from_title():
+    ok = ["Abecedario - Lengua de Señas Colombiana - LSC", "Numbers in Colombian Sign Language",
+          "Aprende Los Números 1 A Millones En LSC", "Spelling Exercises in Colombian Sign Language"]
+    no = ["Saludos en Lengua de Señas", "Number 1 to 20 ASL", "Números, Lengua de Señas Mexicana - LalaLSM",
+          "Is Sign Language Universal?", None, "Conversación en Lenguaje de Señas Colombiano"]
+    assert all(rq.is_relevant_title(t) for t in ok)
+    assert not any(rq.is_relevant_title(t) for t in no)
+
+
+def test_flags_and_items_carry_title_relevance_embeddable(tmp_path):
+    _write_run(tmp_path, n=2)
+    (tmp_path / "candidates.jsonl").write_text(json.dumps({"video_id": "v", "title": "Abecedario LSC"}), encoding="utf-8")
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    assert all(i["relevant"] and i["embeddable"] is None and i["title"] == "Abecedario LSC"
+               for i in rq.review_items(tmp_path))
+    rq.set_flag(tmp_path, "v", False)
+    assert all(i["embeddable"] is False for i in rq.review_items(tmp_path))
+    rq.set_flag(tmp_path, "v", True, "oembed")
+    assert rq.load_flags(tmp_path) == {"v": True}

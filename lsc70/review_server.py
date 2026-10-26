@@ -37,10 +37,13 @@ def make_handler(out: Path, labels: list):
                 self._send(404, b"{}")
 
         def do_POST(self):
-            if self.path != "/api/review":
+            if self.path not in ("/api/review", "/api/flag"):
                 return self._send(404, b"{}")
             try:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+                if self.path == "/api/flag":
+                    rq.set_flag(out, body["video_id"], bool(body["embeddable"]), "page")
+                    return self._send(200, b"{}")
                 rec = rq.record_review(out, body["sample_id"], body["decision"], body.get("label"),
                                        body.get("reviewer", ""), body.get("notes", ""))
                 self._send(200, json.dumps(rec, ensure_ascii=False).encode("utf-8"))

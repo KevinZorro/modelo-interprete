@@ -55,6 +55,20 @@
           <option value="any">todas</option>
         </select>
       </label>
+      <label>Video
+        <select id="play">
+          <option value="ok">reproducibles aquí</option>
+          <option value="yt">solo en YouTube</option>
+          <option value="any">todos</option>
+        </select>
+      </label>
+      <label>Tema
+        <select id="rel">
+          <option value="rel">abecedario y números</option>
+          <option value="other">otros temas</option>
+          <option value="any">todos</option>
+        </select>
+      </label>
       <label>Filtro
         <select id="filter">
           <option value="todo">todas pendientes</option>
@@ -82,6 +96,7 @@
       <span>Sugerida: <span class="sug" id="sug"></span></span>
       <span class="help" id="sug2"></span>
       <span class="tag" id="kind"></span>
+      <span class="help" id="title"></span>
       <span class="status" id="status"></span>
       <span class="tag" id="mode"></span>
       <a id="yt" target="_blank" rel="noopener">abrir en YouTube</a>
@@ -134,7 +149,10 @@ function applyFilter() {
   const f = $("filter").value;
   const t = $("teach").value;
   const okTeach = it => t === "any" || (t === "teaching") === it.teaching;
-  view = items.filter(it => okTeach(it) &&
+  const pl = $("play").value, rl = $("rel").value;
+  const okPlay = it => pl === "any" || (pl === "ok") === (it.embeddable !== false);
+  const okRel = it => rl === "any" || (rl === "rel") === it.relevant;
+  view = items.filter(it => okTeach(it) && okPlay(it) && okRel(it) &&
     (f === "all" ? true : (!it.decision && (f === "todo" || it.query_kind === f))));
   pos = Math.min(pos, Math.max(view.length - 1, 0));
   render();
@@ -195,7 +213,7 @@ const PRE = 1.0, POST = 2.5;
 window.onYouTubeIframeAPIReady = () => {
   ytp = new YT.Player("player", { width: "100%", height: "100%",
     playerVars: { rel: 0, playsinline: 1, origin: location.origin },
-    events: { onReady: () => { ytReady = true; ytp.mute(); loadClip(); }, onStateChange: onYtState } });
+    events: { onError: onYtError, onReady: () => { ytReady = true; ytp.mute(); loadClip(); }, onStateChange: onYtState } });
 };
 const tag = document.createElement("script"); tag.src = "https://www.youtube.com/iframe_api"; document.head.appendChild(tag);
 
@@ -217,6 +235,18 @@ function loadClip() {
   it.settled = false;
   ytp.loadVideoById({ videoId: it.video_id, startSeconds: start });
   $("mode").textContent = dyn(it) ? "seña en movimiento: bucle" : "seña quieta: pausada en el fotograma";
+}
+function onYtError(e) {
+  if (!cur) return;
+  // 100 removed, 101/150 embedding disabled by the owner; 152/153 are player-config errors
+  // (not the video's fault), so those are only shown, never remembered
+  if ([100, 101, 150].includes(e.data)) {
+    items.filter(i => i.video_id === cur.video_id).forEach(i => { i.embeddable = false; });
+    fetch("/api/flag", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ video_id: cur.video_id, embeddable: false }) });
+  }
+  $("msg").textContent = "Este video no se reproduce aquí (error " + e.data + "). Usa «abrir en YouTube»; " +
+    "en el filtro «solo en YouTube» quedan agrupados.";
 }
 function onYtState(e) {
   if (!cur || e.data !== YT.PlayerState.PLAYING || cur.settled) return;
@@ -255,6 +285,7 @@ function render() {
   $("yt").href = it.media === "image" ? it.url : `https://www.youtube.com/watch?v=${it.video_id}&t=${t}s`;
   $("yt").textContent = it.media === "image" ? "abrir página de origen" : "abrir en YouTube";
   $("sug").textContent = it.suggested_names || it.suggested;
+  $("title").textContent = it.title ? "«" + it.title + "»" : "";
   $("sug2").textContent = `distancia ${it.distance} · segunda: ${it.second} · seg ${t} (${pos + 1}/${view.length})`;
   $("kind").textContent = it.media === "image"
     ? `imagen · búsqueda: ${it.query_kind}${it.hint ? " · pista: " + it.hint : ""}${it.license ? " · " + it.license : ""}`
@@ -327,6 +358,8 @@ $("bNext").onclick = () => move(1);
 $("who").oninput = setReviewer;
 $("filter").onchange = () => { pos = 0; applyFilter(); };
 $("teach").onchange = () => { pos = 0; applyFilter(); };
+$("play").onchange = () => { pos = 0; applyFilter(); };
+$("rel").onchange = () => { pos = 0; applyFilter(); };
 
 document.addEventListener("keydown", e => {
   if (e.target === $("lab")) {
