@@ -1,0 +1,63 @@
+{
+ "people": 55,
+ "frames": 8445,
+ "neg_frames": 600,
+ "colab36": {
+  "top1_toma_argmax": 0.8975,
+  "n_tomas": 1473,
+  "fr_frame_thr0": 0.0149,
+  "fa_rest_frame_thr0": 0.055,
+  "letters_read_as_number": 0.025,
+  "worst5": [
+   [
+    "NN",
+    0.44
+   ],
+   [
+    "H",
+    0.65
+   ],
+   [
+    "E",
+    0.74
+   ],
+   [
+    "S",
+    0.78
+   ],
+   [
+    "R",
+    0.85
+   ]
+  ]
+ },
+ "t08": {
+  "top1_toma_argmax": 0.9409,
+  "n_tomas": 1473,
+  "fr_frame_thr0": 0.0081,
+  "fa_rest_frame_thr0": 0.1233,
+  "letters_read_as_number": 0.0,
+  "worst5": [
+   [
+    "NN",
+    0.65
+   ],
+   [
+    "H",
+    0.8
+   ],
+   [
+    "E",
+    0.83
+   ],
+   [
+    "Z",
+    0.89
+   ],
+   [
+    "D",
+    0.93
+   ]
+  ]
+ }
+}
