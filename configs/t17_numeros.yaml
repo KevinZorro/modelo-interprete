@@ -1,0 +1,8 @@
+# T-17: does adding numbers (36 classes, Colab label set) cost letters, and how well do numbers hold up by person?
+# Hypothesis: with the same MLP and folds, letters lose <= 1.6 pts F1 (the ANH figure in CLAUDE.md) and FA does not
+# rise above the T-07 control (8.4 %); static numbers (1,4,5) are recognised, dynamic ones (6-10) are weak.
+# Baseline = letters-only control (T-07 control row is reproduced as a sanity check). One change: numbers labelled.
+study_name: T-17-numeros-letras
+seeds: [1, 2, 3]
+negatives: negativos_reposo.npz
+fr_budget: 0.08   # same as T-06/T-07

@@ -27,7 +27,7 @@ from .normalizacion import PREPARADORES, crear_detector, landmarks_de_imagen
 REFERENCIA_ANH = {"train": 5.2, "test": 2.8, "global": 4.6}
 
 
-def extraer(fuente, cfg, detector, limite_por_clase=None, reporte=2000):
+def extraer(fuente, cfg, detector, limite_por_clase=None, reporte=2000, clases=None):
     prep = PREPARADORES[cfg["preprocesado"]]
     X, E, y, part, nom, frame = [], [], [], [], [], []
     en_disco, retenidas = Counter(), Counter()
@@ -37,7 +37,7 @@ def extraer(fuente, cfg, detector, limite_por_clase=None, reporte=2000):
     imgs = []
     for n in fuente.imagenes():
         p = parsear(fuente.relativa(n), cfg["idx_participante"], cfg["idx_clase"])
-        if p:
+        if p and (clases is None or p[1] in clases):
             imgs.append((n, *p))
     usadas = Counter()
     t0 = time.time()
@@ -149,6 +149,7 @@ def main():
     ap.add_argument("--salida", required=True)
     ap.add_argument("--limite-por-clase", type=int, default=None, help="prueba rápida")
     ap.add_argument("--contrastar-cache", default=None)
+    ap.add_argument("--clases", default=None, help="solo estas clases, separadas por coma (p. ej. 1,4,5)")
     a = ap.parse_args()
 
     cfg = cargar_estructura(a.nombre)  # se niega si no está confirmada
@@ -160,8 +161,9 @@ def main():
     detector = crear_detector(
         a.modelo, num_hands=1
     )  # igual que el entrenamiento original
+    clases = set(a.clases.split(",")) if a.clases else None
     datos, en_disco, retenidas, ilegibles = extraer(
-        fuente, cfg, detector, a.limite_por_clase
+        fuente, cfg, detector, a.limite_por_clase, clases=clases
     )
     detector.close()
     fila, glob = tabla_descarte(en_disco, retenidas)
