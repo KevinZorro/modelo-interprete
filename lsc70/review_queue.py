@@ -84,11 +84,24 @@ def _t(r: dict) -> float:
     return float(r.get("t_s", r["frame"] / 30.0))
 
 
+STILL_MOVE = 0.10   # a held sign: raw landmarks drift less than this many hand sizes in a segment
+
+
+def _drift(a: dict, b: dict) -> float:
+    """Mean raw 2D landmark displacement between two rows, in hand sizes (0 if no landmarks)."""
+    if "landmarks" not in a or "landmarks" not in b:
+        return 0.0
+    A, B = np.asarray(a["landmarks"])[:, :2], np.asarray(b["landmarks"])[:, :2]
+    size = float(np.linalg.norm(A - A[0], axis=1).max()) or 1.0
+    return float(np.linalg.norm(A - B, axis=1).mean()) / size
+
+
 def dedupe_segments(rows: list, threshold: float = 0.06, long_segment: int = 8) -> list:
     """Keep one or two samples per stretch of near-identical frames of one video.
 
     `rows` are landmark rows of a single video sorted by frame. A segment starts at the
-    first row and ends when cosine distance to its first row exceeds `threshold` or the
+    first row and ends when cosine distance to its first row exceeds `threshold`, the hand drifts more than
+    STILL_MOVE hand sizes from where it started, or the
     detections have a gap above MAX_GAP_S; the middle row is kept, plus the first one when
     the segment has >= `long_segment` rows. Kept rows are copies with `held_s`: how long
     the pose stayed put (segment span plus one sampling step).
@@ -101,6 +114,7 @@ def dedupe_segments(rows: list, threshold: float = 0.06, long_segment: int = 8) 
     keep, start = [], 0
     for i in range(1, len(rows) + 1):
         if (i == len(rows) or 1.0 - F[i] @ F[start] > threshold
+                or _drift(rows[start], rows[i]) > STILL_MOVE
                 or _t(rows[i]) - _t(rows[i - 1]) > MAX_GAP_S):
             seg = list(range(start, i))
             held = round(_t(rows[seg[-1]]) - _t(rows[seg[0]]) + step, 3)
@@ -116,6 +130,30 @@ DYNAMIC_CONFIG = Path(__file__).resolve().parent.parent / "configs" / "dynamic_s
 def load_dynamic_signs(path: Path = DYNAMIC_CONFIG) -> set:
     """Names of the signs that need movement; the review player loops these, pauses the rest."""
     return set(json.loads(path.read_text(encoding="utf-8"))["dynamic"])
+
+
+FIT_MAX_DIST = 0.17    # p95 of cosine distance to the own-class centroid on real held-out poses
+MAX_PER_VIDEO = 3      # a video shows its best few poses, not every frame of the clip
+
+
+def is_reviewable(item: dict) -> bool:
+    """A sample worth the reviewer's time: the pose was held and it resembles some sign.
+
+    Moving hands and transitions are single frames (never held) or sit far from every
+    reference pose. Dynamic signs are not exempt: a sequence needs another review, not a frame.
+    """
+    return item["held_s"] >= HOLD_S and item["distance"] <= FIT_MAX_DIST
+
+
+def best_per_video(items: list, per_video: int = MAX_PER_VIDEO) -> list:
+    """Keep the `per_video` most confident items of each video (longest held, then nearest)."""
+    keep, count = [], {}
+    for it in sorted(items, key=lambda x: (-x["held_s"], x["distance"])):
+        n = count.get(it["video_id"], 0)
+        if n < per_video:
+            keep.append(it)
+            count[it["video_id"]] = n + 1
+    return keep
 
 
 TRACK_PRE_S, TRACK_POST_S = 1.0, 2.5   # same window the review player loops
@@ -157,8 +195,12 @@ def set_flag(out: Path, video_id: str, embeddable: bool, how: str = "page") -> N
         f.write(json.dumps(rec) + "\n")
 
 
-def review_items(out: Path) -> list:
-    """Queue joined with landmarks, deduplicated, numbers first then rest, with any decision."""
+def review_items(out: Path, strict: bool = True) -> list:
+    """Queue joined with landmarks, deduplicated, numbers first then rest, with any decision.
+
+    With `strict` (default) only held poses that resemble a sign are returned, at most
+    MAX_PER_VIDEO per video; samples already decided always stay. `strict=False` returns all.
+    """
     queue = {q["sample_id"]: q for q in read_jsonl(out / "review_queue.jsonl")}
     by_video = {}
     for r in read_jsonl(out / "landmarks.jsonl"):
@@ -187,6 +229,10 @@ def review_items(out: Path) -> list:
                           "is_left": r["is_left"], "landmarks": r["landmarks"],
                           "track": track_around(rows, _t(r)),
                           "decision": decided.get(q["sample_id"])})
+    if strict:
+        kept = best_per_video([x for x in items if x["decision"] is None and is_reviewable(x)])
+        ids = {x["sample_id"] for x in kept}
+        items = [x for x in items if x["decision"] is not None or x["sample_id"] in ids]
     items.sort(key=lambda x: (not x["teaching"], KIND_PRIORITY.get(x["query_kind"], 9),
                               x["video_id"], x["frame"]))
     return items

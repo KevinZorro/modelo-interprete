@@ -18,7 +18,7 @@ PAGE = Path(__file__).with_name("review_ui.html")
 EXTRA_LABELS = [str(d) for d in range(10)]
 
 
-def make_handler(out: Path, labels: list):
+def make_handler(out: Path, labels: list, all_items: bool = False):
     class Handler(BaseHTTPRequestHandler):
         def _send(self, code, body: bytes, ctype="application/json; charset=utf-8"):
             self.send_response(code)
@@ -31,7 +31,7 @@ def make_handler(out: Path, labels: list):
             if self.path in ("/", "/index.html"):
                 self._send(200, PAGE.read_bytes(), "text/html; charset=utf-8")
             elif self.path == "/api/queue":
-                payload = {"items": rq.review_items(out), "labels": labels}
+                payload = {"items": rq.review_items(out, strict=not all_items), "labels": labels}
                 self._send(200, json.dumps(payload, ensure_ascii=False).encode("utf-8"))
             else:
                 self._send(404, b"{}")
@@ -63,13 +63,14 @@ def main(argv=None):
     ap.add_argument("--rebuild", action="store_true", help="recompute review_queue.jsonl first")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true")
+    ap.add_argument("--all", action="store_true", help="show every sample, not only held poses")
     a = ap.parse_args(argv)
     if a.refs and (a.rebuild or not (a.out / "review_queue.jsonl").exists()):
         print({"queued": rq.build(a.out, a.refs)})
     labels = list(EXTRA_LABELS)
     if a.refs:
         labels = rq.load_refs(a.refs)[1] + labels
-    srv = HTTPServer(("127.0.0.1", a.port), make_handler(a.out, labels))
+    srv = HTTPServer(("127.0.0.1", a.port), make_handler(a.out, labels, a.all))
     url = f"http://127.0.0.1:{a.port}/"
     print(f"Review page: {url}  (Ctrl+C to stop)")
     if not a.no_browser:

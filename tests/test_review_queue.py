@@ -1,10 +1,15 @@
 import csv
+import sys
+from pathlib import Path
 import json
 
 import numpy as np
 import pytest
 
-from lsc70 import review_queue as rq
+sys.path.insert(0, str(Path(__file__).parent))
+from synthetic_queue import make_videos  # noqa: E402
+
+from lsc70 import review_queue as rq  # noqa: E402
 
 
 def _refs():
@@ -172,3 +177,38 @@ def test_flags_and_items_carry_title_relevance_embeddable(tmp_path):
     assert all(i["embeddable"] is False for i in rq.review_items(tmp_path))
     rq.set_flag(tmp_path, "v", True, "oembed")
     assert rq.load_flags(tmp_path) == {"v": True}
+
+
+def _row(i, pos, feat=None):
+    lm = [[pos + 0.01 * k, 0.5 + 0.01 * k, 0.0] for k in range(21)]
+    return {"frame": i * 10, "t_s": i / 3, "features": feat or [1.0] + [0.0] * 62, "landmarks": lm}
+
+
+def test_travelling_hand_with_same_shape_is_not_a_held_pose():
+    still = [_row(i, 0.5) for i in range(4)]
+    moving = [_row(i, 0.2 + 0.15 * i) for i in range(4)]
+    assert rq.dedupe_segments(still)[0]["held_s"] >= rq.HOLD_S
+    assert all(k["held_s"] < rq.HOLD_S for k in rq.dedupe_segments(moving))
+
+
+def test_reviewable_needs_hold_and_fit_and_cap_per_video():
+    ok = {"held_s": 1.3, "distance": 0.05, "video_id": "a"}
+    assert rq.is_reviewable(ok)
+    assert not rq.is_reviewable({**ok, "held_s": 0.3})
+    assert not rq.is_reviewable({**ok, "distance": 0.5})
+    items = [{**ok, "held_s": 1.0 + i / 10} for i in range(5)] + [{**ok, "video_id": "b"}]
+    kept = rq.best_per_video(items, per_video=2)
+    assert sorted(x["video_id"] for x in kept) == ["a", "a", "b"]
+    assert max(x["held_s"] for x in kept) == 1.4
+
+
+@pytest.mark.skipif(not Path("landmarks_cache.npz").exists(), reason="needs landmarks_cache.npz")
+def test_strict_queue_drops_motion_on_synthetic_videos(tmp_path):
+    rows, truth = make_videos("landmarks_cache.npz", n_videos=12, seed=3)
+    (tmp_path / "landmarks.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    rq.build(tmp_path, Path("landmarks_cache.npz"))
+    shown = rq.review_items(tmp_path, strict=True)
+    everything = rq.review_items(tmp_path, strict=False)
+    junk = lambda its: np.mean([not truth[i["sample_id"]] for i in its])  # noqa: E731
+    assert len(shown) and len(shown) < len(everything) / 3
+    assert junk(shown) <= 0.05 < junk(everything)
