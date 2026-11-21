@@ -62,11 +62,43 @@ def read_jsonl(p: Path) -> list:
     return [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x]
 
 
-def build(out: Path, refs: Path) -> int:
-    """Write review_queue.jsonl: pending, unreviewed samples, closest to a reference first."""
+STILL_DIST = 0.02   # max cosine distance between consecutive samples of a held pose
+MAX_GAP_S = 1.5     # samples further apart than this are not neighbours
+
+
+def held_poses(rows: list, still_dist: float = STILL_DIST, max_gap_s: float = MAX_GAP_S) -> list:
+    """Keep one sample per held pose: the middle one of each run of near-identical consecutive
+    samples within a video. Moving hands and transitions (the bulk of scraped frames) have no
+    still neighbour and drop out, so the reviewer sees poses, not motion."""
+    by_video = {}
+    for r in rows:
+        by_video.setdefault(r["video_id"], []).append(r)
+    kept = []
+    for vid_rows in by_video.values():
+        vid_rows.sort(key=lambda r: r["t_s"])
+        U = _unit(np.asarray([r["features"] for r in vid_rows], dtype=np.float64))
+        run = [0]
+        for i in range(1, len(vid_rows) + 1):
+            same = (i < len(vid_rows)
+                    and vid_rows[i]["t_s"] - vid_rows[i - 1]["t_s"] <= max_gap_s
+                    and 1.0 - float(U[i] @ U[i - 1]) <= still_dist)
+            if same:
+                run.append(i)
+                continue
+            if len(run) >= 2:
+                kept.append(vid_rows[run[len(run) // 2]])
+            run = [i]
+    return kept
+
+
+def build(out: Path, refs: Path, still_only: bool = True) -> int:
+    """Write review_queue.jsonl: pending, unreviewed samples, closest to a reference first.
+    With `still_only` (default) only held poses are queued; see `held_poses`."""
     reviewed = {r["sample_id"] for r in read_jsonl(out / "reviews.jsonl")}
     rows = [r for r in read_jsonl(out / "landmarks.jsonl")
             if r.get("review_status") == "pending" and sample_id(r) not in reviewed]
+    if still_only:
+        rows = held_poses(rows)
     queue = []
     if rows:
         cent, names = load_refs(refs)
@@ -155,12 +187,14 @@ def main(argv=None):
         p.add_argument("--out", type=Path, required=True)
         if name == "build":
             p.add_argument("--refs", type=Path, required=True, help="npz with Xtr, ytr, etiquetas")
+            p.add_argument("--all-frames", action="store_true",
+                           help="queue every pending sample, not only held poses")
         if name == "import":
             p.add_argument("--csv", type=Path, required=True)
             p.add_argument("--reviewer", required=True)
     a = ap.parse_args(argv)
     if a.cmd == "build":
-        print({"queued": build(a.out, a.refs)})
+        print({"queued": build(a.out, a.refs, still_only=not a.all_frames)})
     elif a.cmd == "sheet":
         print(write_sheet(a.out))
     elif a.cmd == "import":

@@ -36,7 +36,7 @@ def _write_run(tmp_path, n=3):
 
 def test_build_never_sets_label_and_sheet_roundtrip(tmp_path):
     _write_run(tmp_path)
-    assert rq.build(tmp_path, tmp_path / "refs.npz") == 3
+    assert rq.build(tmp_path, tmp_path / "refs.npz", still_only=False) == 3
     q = rq.read_jsonl(tmp_path / "review_queue.jsonl")
     assert all("label" not in x for x in q)
     sheet = rq.write_sheet(tmp_path)
@@ -55,7 +55,7 @@ def test_build_never_sets_label_and_sheet_roundtrip(tmp_path):
     val = rq.read_jsonl(tmp_path / "validated.jsonl")
     assert {v["label"] for v in val} == {rows[0]["suggested"], "C"}
     assert all(v["reviewer"] == "Ana" and v["review_status"] == "validated" for v in val)
-    assert rq.build(tmp_path, tmp_path / "refs.npz") == 0         # reviewed samples leave the queue
+    assert rq.build(tmp_path, tmp_path / "refs.npz", still_only=False) == 0         # reviewed samples leave the queue
 
 
 def test_bad_decisions_are_rejected(tmp_path):
@@ -66,3 +66,15 @@ def test_bad_decisions_are_rejected(tmp_path):
     assert rq.parse_decision({"sample_id": "x", "decision": ""}) is None
     with pytest.raises(ValueError):
         rq.import_sheet(tmp_path, tmp_path / "none.csv", " ")
+
+
+def test_held_poses_drops_motion_and_keeps_one_per_hold():
+    def row(vid, t, vec):
+        return {"video_id": vid, "frame": int(t * 10), "t_s": t, "features": vec}
+    a, b = [1.0] + [0.0] * 62, [0.0, 1.0] + [0.0] * 61
+    c = [0.0, 0.0, 1.0] + [0.0] * 60
+    rows = [row("v", 0, a), row("v", 1, a), row("v", 2, a),   # held pose -> 1 sample
+            row("v", 3, b), row("v", 4, c),                   # motion -> dropped
+            row("w", 0, b)]                                   # lone sample -> dropped
+    kept = rq.held_poses(rows)
+    assert len(kept) == 1 and kept[0]["t_s"] == 1
