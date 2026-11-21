@@ -1,10 +1,15 @@
 import csv
+import sys
+from pathlib import Path
 import json
 
 import numpy as np
 import pytest
 
-from lsc70 import review_queue as rq
+sys.path.insert(0, str(Path(__file__).parent))
+from synthetic_queue import make_videos  # noqa: E402
+
+from lsc70 import review_queue as rq  # noqa: E402
 
 
 def _refs():
@@ -26,7 +31,7 @@ def test_rank_suggests_nearest_class_and_orders_by_distance():
 
 def _write_run(tmp_path, n=3):
     rows = [{"video_id": "v", "frame": i * 10, "t_s": i, "url": "https://y.test/watch?v=v",
-             "query_kind": "lsc", "features": ([1.0] + [0.0] * 62) if i else ([0.0, 1.0] + [0.0] * 61),
+             "query_kind": "lsc", "is_left": False, "landmarks": [[0.0, 0.0, 0.0]] * 21, "features": ([1.0] + [0.0] * 62) if i else ([0.0, 1.0] + [0.0] * 61),
              "label": None, "review_status": "pending"} for i in range(n)]
     (tmp_path / "landmarks.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
     cent, names = _refs()
@@ -55,7 +60,8 @@ def test_build_never_sets_label_and_sheet_roundtrip(tmp_path):
     val = rq.read_jsonl(tmp_path / "validated.jsonl")
     assert {v["label"] for v in val} == {rows[0]["suggested"], "C"}
     assert all(v["reviewer"] == "Ana" and v["review_status"] == "validated" for v in val)
-    assert rq.build(tmp_path, tmp_path / "refs.npz") == 0         # reviewed samples leave the queue
+    assert rq.build(tmp_path, tmp_path / "refs.npz") == 3         # a rebuild keeps reviewed samples...
+    assert all(i["decision"] is None or i["decision"]["decision"] != "undo" for i in rq.review_items(tmp_path))
 
 
 def test_bad_decisions_are_rejected(tmp_path):
@@ -66,3 +72,143 @@ def test_bad_decisions_are_rejected(tmp_path):
     assert rq.parse_decision({"sample_id": "x", "decision": ""}) is None
     with pytest.raises(ValueError):
         rq.import_sheet(tmp_path, tmp_path / "none.csv", " ")
+
+
+def test_dedupe_keeps_one_or_two_per_segment():
+    def row(i, vec):
+        return {"frame": i, "features": vec}
+    a, b = [1.0] + [0.0] * 62, [0.0, 1.0] + [0.0] * 61
+    rows = [row(i, a) for i in range(3)] + [row(3 + i, b) for i in range(10)]
+    kept = rq.dedupe_segments(rows)
+    assert [r["frame"] for r in kept] == [1, 3, 8]      # middle of A; first+middle of long B
+    assert rq.dedupe_segments([]) == []
+
+
+def test_undo_cancels_and_review_items_order(tmp_path):
+    _write_run(tmp_path, n=3)
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    sid = "v:20"
+    rq.record_review(tmp_path, sid, "relabel", "7", "Kevin")
+    assert rq.latest_reviews(tmp_path)[sid]["label"] == "7"
+    assert [i["decision"] is not None for i in rq.review_items(tmp_path) if i["sample_id"] == sid] == [True]
+    rq.record_review(tmp_path, sid, "undo", None, "Kevin")
+    assert sid not in rq.latest_reviews(tmp_path)
+    assert rq.build(tmp_path, tmp_path / "refs.npz") == 3
+    with pytest.raises(ValueError):
+        rq.record_review(tmp_path, sid, "relabel", "", "Kevin")
+
+
+def test_rebuild_keeps_review_progress(tmp_path):
+    _write_run(tmp_path, n=3)
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    rq.record_review(tmp_path, "v:20", "accept", "A", "Kevin")
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    done = [i for i in rq.review_items(tmp_path) if i["decision"]]
+    assert [d["sample_id"] for d in done] == ["v:20"] and done[0]["decision"]["label"] == "A"
+
+
+def test_export_adds_pose_class_for_aliases(tmp_path):
+    _write_run(tmp_path, n=3)
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    assert all("suggested_names" in q for q in rq.read_jsonl(tmp_path / "review_queue.jsonl"))
+    rq.record_review(tmp_path, "v:20", "relabel", "1", "Kevin")
+    rq.export_validated(tmp_path)
+    val = rq.read_jsonl(tmp_path / "validated.jsonl")
+    assert val[0]["label"] == "1" and val[0]["pose"] == "F"
+
+
+def test_dynamic_flag_follows_confirmed_sign_list(tmp_path):
+    assert rq.load_dynamic_signs() == {"6", "7", "8", "9", "10", "G", "H", "J", "Ñ", "S", "Z"}
+    _write_run(tmp_path, n=3)
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    items = rq.review_items(tmp_path, strict=False)
+    assert items and all(i["dynamic"] == (i["suggested"] in rq.load_dynamic_signs()) for i in items)
+
+
+def test_held_seconds_and_teaching_flag(tmp_path):
+    a, b = [1.0] + [0.0] * 62, [0.0, 1.0] + [0.0] * 61
+    # pose A held 4 samples 0.33 s apart (+ one step = 1.33 s), then a lone B 1 s later
+    rows = [{"frame": i * 10, "t_s": i / 3, "features": a} for i in range(4)]
+    rows += [{"frame": 40, "t_s": 1.67, "features": b}]
+    kept = rq.dedupe_segments(rows)
+    assert [round(k["held_s"], 2) for k in kept] == [1.33, 0.33]
+    assert kept[0]["held_s"] >= rq.HOLD_S > kept[1]["held_s"]
+    far = rows[:2] + [{"frame": 300, "t_s": 10.0, "features": a}]
+    assert [k["held_s"] for k in rq.dedupe_segments(far)][-1] < rq.HOLD_S   # gap ends the segment
+
+
+def test_track_around_keeps_only_the_loop_window():
+    lm = [[0.1 * i, 0.2, 0.0] for i in range(21)]
+    rows = [{"frame": i * 10, "t_s": float(t), "landmarks": lm} for i, t in enumerate([0, 3, 4, 5, 6, 9])]
+    tr = rq.track_around(rows, 4.0)
+    assert [x[0] for x in tr] == [3.0, 4.0, 5.0, 6.0]            # 4-1 .. 4+2.5
+    assert len(tr[0][1]) == 21 and len(tr[0][1][0]) == 2          # x, y only
+
+
+def test_decided_sample_stays_visible_even_if_dedupe_skips_it(tmp_path):
+    _write_run(tmp_path, n=3)
+    rows = rq.read_jsonl(tmp_path / "landmarks.jsonl")
+    for r in rows:
+        r["t_s"] = r["frame"] / 30      # close enough in time to share a segment
+    (tmp_path / "landmarks.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    shown = {i["sample_id"] for i in rq.review_items(tmp_path)}
+    skipped = ({"v:0", "v:10", "v:20"} - shown).pop()
+    rq.record_review(tmp_path, skipped, "accept", "A", "Kevin")
+    assert skipped in {i["sample_id"] for i in rq.review_items(tmp_path)}
+
+
+def test_relevance_from_title():
+    ok = ["Abecedario - Lengua de Señas Colombiana - LSC", "Numbers in Colombian Sign Language",
+          "Aprende Los Números 1 A Millones En LSC", "Spelling Exercises in Colombian Sign Language"]
+    no = ["Saludos en Lengua de Señas", "Number 1 to 20 ASL", "Números, Lengua de Señas Mexicana - LalaLSM",
+          "Is Sign Language Universal?", None, "Conversación en Lenguaje de Señas Colombiano"]
+    assert all(rq.is_relevant_title(t) for t in ok)
+    assert not any(rq.is_relevant_title(t) for t in no)
+
+
+def test_flags_and_items_carry_title_relevance_embeddable(tmp_path):
+    _write_run(tmp_path, n=2)
+    (tmp_path / "candidates.jsonl").write_text(json.dumps({"video_id": "v", "title": "Abecedario LSC"}), encoding="utf-8")
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    assert all(i["relevant"] and i["embeddable"] is None and i["title"] == "Abecedario LSC"
+               for i in rq.review_items(tmp_path))
+    rq.set_flag(tmp_path, "v", False)
+    assert all(i["embeddable"] is False for i in rq.review_items(tmp_path))
+    rq.set_flag(tmp_path, "v", True, "oembed")
+    assert rq.load_flags(tmp_path) == {"v": True}
+
+
+def _row(i, pos, feat=None):
+    lm = [[pos + 0.01 * k, 0.5 + 0.01 * k, 0.0] for k in range(21)]
+    return {"frame": i * 10, "t_s": i / 3, "features": feat or [1.0] + [0.0] * 62, "landmarks": lm}
+
+
+def test_travelling_hand_with_same_shape_is_not_a_held_pose():
+    still = [_row(i, 0.5) for i in range(4)]
+    moving = [_row(i, 0.2 + 0.15 * i) for i in range(4)]
+    assert rq.dedupe_segments(still)[0]["held_s"] >= rq.HOLD_S
+    assert all(k["held_s"] < rq.HOLD_S for k in rq.dedupe_segments(moving))
+
+
+def test_reviewable_needs_hold_and_fit_and_cap_per_video():
+    ok = {"held_s": 1.3, "distance": 0.05, "video_id": "a"}
+    assert rq.is_reviewable(ok)
+    assert not rq.is_reviewable({**ok, "held_s": 0.3})
+    assert not rq.is_reviewable({**ok, "distance": 0.5})
+    items = [{**ok, "held_s": 1.0 + i / 10} for i in range(5)] + [{**ok, "video_id": "b"}]
+    kept = rq.best_per_video(items, per_video=2)
+    assert sorted(x["video_id"] for x in kept) == ["a", "a", "b"]
+    assert max(x["held_s"] for x in kept) == 1.4
+
+
+@pytest.mark.skipif(not Path("landmarks_cache.npz").exists(), reason="needs landmarks_cache.npz")
+def test_strict_queue_drops_motion_on_synthetic_videos(tmp_path):
+    rows, truth = make_videos("landmarks_cache.npz", n_videos=12, seed=3)
+    (tmp_path / "landmarks.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    rq.build(tmp_path, Path("landmarks_cache.npz"))
+    shown = rq.review_items(tmp_path, strict=True)
+    everything = rq.review_items(tmp_path, strict=False)
+    junk = lambda its: np.mean([not truth[i["sample_id"]] for i in its])  # noqa: E731
+    assert len(shown) and len(shown) < len(everything) / 3
+    assert junk(shown) <= 0.05 < junk(everything)

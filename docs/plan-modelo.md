@@ -40,3 +40,5 @@ Estados: pendiente, en curso, en revisión, hecha y bloqueada.
 | 2026-10-18 | ~~El scraper descubre fuentes y pide permiso; no descarga videos~~ (reemplazada el 2026-10-25) | Términos de las plataformas, Ley 1581 y valor comercial del dataset |
 | 2026-10-25 | El scraper procesa videos públicos de forma temporal y guarda solo landmarks, aunque contravenga los términos de las plataformas; sin grabaciones propias | Decisión de Kevin: los landmarks no son datos personales ni imagen, el video nunca se guarda ni publica; el riesgo legal de los términos de uso lo asume el proyecto |
 | 2026-10-18 | El proyecto trabaja el modelo y no la app | El modelo es el producto principal |
+
+- Decisión de Kevin, 2026-10-25: 1=F, 2=V y 3=W son la misma pose (`configs/alias_poses.json`). Al entrenar con números el modelo predice la pose; evaluar con `lsc70.alias_poses.pose_accuracy`. Pendiente que T-10 y T-11 lo usen.
