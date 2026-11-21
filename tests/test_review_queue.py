@@ -121,7 +121,7 @@ def test_dynamic_flag_follows_confirmed_sign_list(tmp_path):
     assert rq.load_dynamic_signs() == {"6", "7", "8", "9", "10", "G", "H", "J", "Ñ", "S", "Z"}
     _write_run(tmp_path, n=3)
     rq.build(tmp_path, tmp_path / "refs.npz")
-    items = rq.review_items(tmp_path)
+    items = rq.review_items(tmp_path, strict=False)
     assert items and all(i["dynamic"] == (i["suggested"] in rq.load_dynamic_signs()) for i in items)
 
 
