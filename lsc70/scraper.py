@@ -51,8 +51,27 @@ def _now() -> str:
 
 # ----- discovery (metadata only, nothing downloaded) -----
 
-def discover(query: str, kind: str, limit: int, limiter: Optional[RateLimiter] = None) -> list:
-    """Candidate videos for `query` as dicts of metadata. Needs `pip install yt-dlp`."""
+MIN_DURATION_S, MAX_DURATION_S = 30, 20 * 60   # shorter: a clip; longer: a class or a stream
+OVERFETCH = 4                                  # search this many times `limit`, keep the good ones
+QUERIES = {
+    "lsc": ["abecedario lengua de señas colombiana", "alfabeto dactilológico LSC Colombia",
+            "aprende el abecedario en LSC", "deletreo lengua de señas colombiana"],
+    "numeros": ["números en lengua de señas colombiana", "contar del 1 al 10 en LSC"],
+}
+
+
+def is_good_candidate(meta: dict) -> bool:
+    """Title about the alphabet or numbers without naming another sign language, and a length
+    that fits a lesson. Metadata only: it decides what to download, it never labels."""
+    from lsc70.review_queue import is_relevant_title
+    d = meta.get("duration_s")
+    return is_relevant_title(meta.get("title")) and (d is None or MIN_DURATION_S <= d <= MAX_DURATION_S)
+
+
+def discover(query: str, kind: str, limit: int, limiter: Optional[RateLimiter] = None,
+             only_good: bool = False) -> list:
+    """Candidate videos for `query` as dicts of metadata. Needs `pip install yt-dlp`.
+    With `only_good`, over-fetch and keep up to `limit` that pass `is_good_candidate`."""
     import yt_dlp
 
     if kind not in KINDS:
@@ -60,8 +79,9 @@ def discover(query: str, kind: str, limit: int, limiter: Optional[RateLimiter] =
     (limiter or RateLimiter()).wait()
     opts = {"quiet": True, "skip_download": True, "extract_flat": True}
     with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(f"ytsearch{limit}:{query}", download=False)
-    return [
+        info = ydl.extract_info(f"ytsearch{limit * (OVERFETCH if only_good else 1)}:{query}",
+                                download=False)
+    found = [
         {
             "video_id": e.get("id"),
             "url": e.get("url") or f"https://www.youtube.com/watch?v={e.get('id')}",
@@ -75,6 +95,7 @@ def discover(query: str, kind: str, limit: int, limiter: Optional[RateLimiter] =
         }
         for e in (info.get("entries") or []) if e.get("id")
     ]
+    return [c for c in found if is_good_candidate(c)][:limit] if only_good else found
 
 
 # ----- per-video processing -----
@@ -215,7 +236,9 @@ def run(out: Path, detect: Callable, limit_videos: int, limiter: Optional[RateLi
     in failed.jsonl and do not stop the run."""
     limiter = limiter or RateLimiter()
     done = done_ids(out)
-    todo = [c for c in load_candidates(out) if c["video_id"] not in done][:limit_videos]
+    pending = [c for c in load_candidates(out) if c["video_id"] not in done]
+    pending.sort(key=lambda c: not is_good_candidate(c))   # stable: good lessons first
+    todo = pending[:limit_videos]
     stats = {"videos": 0, "samples": 0, "failed": 0}
     for meta in todo:
         limiter.wait()
@@ -241,8 +264,11 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     d = sub.add_parser("discover")
-    d.add_argument("query")
+    d.add_argument("query", nargs="?", help="omit with --preset to run the built-in queries")
     d.add_argument("--kind", choices=KINDS, required=True)
+    d.add_argument("--only-good", action="store_true",
+                   help="keep only alphabet/number titles of lesson length (default with --preset)")
+    d.add_argument("--preset", action="store_true", help="use the built-in queries of --kind")
     d.add_argument("--limit", type=int, default=20)
     d.add_argument("--out", type=Path, required=True)
     r = sub.add_parser("run")
@@ -250,12 +276,21 @@ def main(argv=None):
     r.add_argument("--model", required=True, help="hand_landmarker.task")
     r.add_argument("--limit-videos", type=int, default=10)
     r.add_argument("--stride", type=int, default=DEFAULT_STRIDE)
-    r.add_argument("--max-per-video", type=int, default=DEFAULT_MAX_PER_VIDEO)
+    r.add_argument("--max-per-video", type=int, default=150,
+                   help="the first 60 samples are only ~20 s of intro; lessons need the whole video")
     a = ap.parse_args(argv)
     a.out.mkdir(parents=True, exist_ok=True)
     if a.cmd == "discover":
         known = {c["video_id"] for c in load_candidates(a.out)}
-        new = [c for c in discover(a.query, a.kind, a.limit) if c["video_id"] not in known]
+        queries = QUERIES.get(a.kind, []) if a.preset else [a.query]
+        if not queries or None in queries:
+            ap.error("give a query, or --preset with --kind lsc|numeros")
+        new = []
+        for q in queries:
+            for c in discover(q, a.kind, a.limit, only_good=a.only_good or a.preset):
+                if c["video_id"] not in known:
+                    known.add(c["video_id"])
+                    new.append(c)
         append_jsonl(a.out / "candidates.jsonl", new)
         print(f"{len(new)} new candidates")
     else:

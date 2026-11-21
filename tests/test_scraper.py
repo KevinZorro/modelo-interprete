@@ -86,3 +86,24 @@ def test_stats_count_tried_hand_and_ok():
     out = list(scraper.samples_from_frames(_frames(None), lambda img: next(seq), stride=10,
                                            max_samples=2, stats=st))
     assert len(out) == 2 and st == {"tried": 4, "hand": 3, "ok": 2}
+
+
+def test_good_candidates_need_alphabet_title_and_lesson_length():
+    from lsc70.scraper import is_good_candidate
+    ok = {"title": "Abecedario en Lengua de Señas Colombiana", "duration_s": 120}
+    assert is_good_candidate(ok)
+    assert not is_good_candidate({**ok, "title": "Alfabeto ASL americano"})
+    assert not is_good_candidate({**ok, "title": "Hola, así saludo"})
+    assert not is_good_candidate({**ok, "duration_s": 5})
+    assert not is_good_candidate({**ok, "duration_s": 3 * 3600})
+
+
+def test_run_processes_good_candidates_first(tmp_path):
+    from lsc70 import scraper
+    scraper.append_jsonl(tmp_path / "candidates.jsonl", [
+        {"video_id": "bad", "url": "ub", "title": "saludos", "duration_s": 100},
+        {"video_id": "good", "url": "ug", "title": "Abecedario LSC", "duration_s": 100}])
+    seen = []
+    scraper.run(tmp_path, lambda img: None, 1, limiter=scraper.RateLimiter(0),
+                downloader=lambda url, d: seen.append(url) or "x.mp4", frames_fn=lambda p: iter(()))
+    assert [m for m in (tmp_path / "done.txt").read_text().split()] == ["good"]
