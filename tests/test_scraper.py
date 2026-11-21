@@ -101,8 +101,8 @@ def test_good_candidates_need_alphabet_title_and_lesson_length():
 def test_run_processes_good_candidates_first(tmp_path):
     from lsc70 import scraper
     scraper.append_jsonl(tmp_path / "candidates.jsonl", [
-        {"video_id": "bad", "title": "saludos", "duration_s": 100},
-        {"video_id": "good", "title": "Abecedario LSC", "duration_s": 100}])
+        {"video_id": "bad", "url": "ub", "title": "saludos", "duration_s": 100},
+        {"video_id": "good", "url": "ug", "title": "Abecedario LSC", "duration_s": 100}])
     seen = []
     scraper.run(tmp_path, lambda img: None, 1, limiter=scraper.RateLimiter(0),
                 downloader=lambda url, d: seen.append(url) or "x.mp4", frames_fn=lambda p: iter(()))
