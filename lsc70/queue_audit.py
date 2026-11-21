@@ -9,6 +9,9 @@ A queued sample is junk when ANY of these holds (all computed from the landmarks
   no_fit    cosine distance to every reference pose above FIT_MAX_DIST.
 `moving` uses raw positions while the filter uses normalized shape, so it is not the same
 test the filter applies. Prints the rate for the unfiltered and the filtered queue.
+`page_after` also holds samples that already have a decision (the page always keeps them, so
+progress is not lost); `page_after_pending` is only what the filter newly selects, the number
+that says whether the filter works.
 """
 import argparse
 import json
@@ -65,9 +68,11 @@ def audit(out: Path) -> dict:
         return {"n": len(ids), "junk": round(sum(bool(flags[i]) for i in ids) / n, 3),
                 **{k: round(v, 3) for k, v in c.items()}}
     before = {it["sample_id"] for it in rq.review_items(out, strict=False)} & set(flags)
-    after = {it["sample_id"] for it in rq.review_items(out, strict=True)} & set(flags)
+    items = rq.review_items(out, strict=True)
+    after = {it["sample_id"] for it in items} & set(flags)
+    pending = {it["sample_id"] for it in items if it["decision"] is None} & set(flags)
     return {"all_samples": rate(flags), "page_before": rate(before), "page_after": rate(after),
-            "videos": len(by_video)}
+            "page_after_pending": rate(pending), "videos": len(by_video)}
 
 
 def main(argv=None):
