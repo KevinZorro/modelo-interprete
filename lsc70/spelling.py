@@ -221,6 +221,6 @@ class SpellingEngine:
     def _end_word(self, t_ms: int, events: list) -> None:
         if self._letters:
             best, cands, amb = decode(self._letters, self.lexicon, self.cfg)
-            events.append(WordFinished(t_ms, tuple(l for l, _ in self._letters), best, cands, amb))
+            events.append(WordFinished(t_ms, tuple(ltr for ltr, _ in self._letters), best, cands, amb))
         self.reset()
         self._idle_start = t_ms

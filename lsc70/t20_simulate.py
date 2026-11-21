@@ -45,7 +45,9 @@ def main() -> None:
     for p in (0.888, 0.95):
         for pcw in (0.0, 0.5, 1.0):
             res = [simulate(p, pcw, s) for s in (0, 1, 2)]
-            m = lambda i: round(statistics.mean(r[i] for r in res), 3)
+            def m(i):
+                return round(statistics.mean(r[i] for r in res), 3)
+
             rows.append({"letter_acc": p, "p_conf_wrong": pcw, "raw": m(0), "decoded": m(1),
                          "wrong_word": m(2), "lexicon": res[0][3]})
     json.dump(rows, sys.stdout, indent=1)
