@@ -53,10 +53,22 @@ def rank_samples(features: np.ndarray, cent: np.ndarray, names: list) -> list:
     return out
 
 
-def load_refs(npz_path: Path) -> tuple:
-    """Train-split references only: the frozen test split never feeds the queue."""
+def load_refs(npz_path: Path, numbers: bool = False) -> tuple:
+    """Train-split references only: the frozen test split never feeds the queue.
+
+    The cache's `none` class is the ANH numbers (1, 4-10, MIL, MILLON). With `numbers` each
+    becomes its own class, named from the sample's file (Per01__10__Per01_10_0.jpg is a 10),
+    and 1 joins F because they are the same pose."""
     d = np.load(npz_path, allow_pickle=True)
-    return class_centroids(d["Xtr"], d["ytr"], d["etiquetas"])
+    if not numbers or "ntr" not in d:
+        return class_centroids(d["Xtr"], d["ytr"], d["etiquetas"])
+    names = [str(e) for e in d["etiquetas"]]
+    y = []
+    for i, f in zip(d["ytr"], d["ntr"]):
+        parts = str(f).split("__")
+        y.append(alias_poses.canonical(parts[1]) if names[i] == "none" and len(parts) >= 3 else names[i])
+    labels = sorted(set(y))
+    return class_centroids(d["Xtr"], np.array([labels.index(v) for v in y]), labels)
 
 
 def read_jsonl(p: Path) -> list:
