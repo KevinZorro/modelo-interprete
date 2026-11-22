@@ -118,7 +118,7 @@ def test_export_adds_pose_class_for_aliases(tmp_path):
 
 
 def test_dynamic_flag_follows_confirmed_sign_list(tmp_path):
-    assert rq.load_dynamic_signs() == {"6", "7", "8", "9", "10", "G", "H", "J", "Ñ", "S", "Z"}
+    assert rq.load_dynamic_signs() == {"6", "7", "8", "9", "10", "G", "H", "J", "Ñ", "NN", "S", "Z"}  # NN: the model's Ñ
     _write_run(tmp_path, n=3)
     rq.build(tmp_path, tmp_path / "refs.npz")
     items = rq.review_items(tmp_path, strict=False)
@@ -253,3 +253,22 @@ def test_strict_queue_skips_videos_that_cannot_be_embedded(tmp_path):
     rq.set_flag(tmp_path, vid, False, "test")
     assert not [i for i in rq.review_items(tmp_path) if i["video_id"] == vid]
     assert len(rq.review_items(tmp_path, strict=False)) == len(every)
+
+
+@pytest.mark.skipif(not Path("landmarks_cache.npz").exists(), reason="needs landmarks_cache.npz")
+def test_spotted_queue_suggests_the_letter_and_loops_only_that_sign(tmp_path):
+    from lsc70 import mlp_numpy
+    from lsc70 import queue_eval as qe
+    cls = {}
+    rows, truth = make_videos("landmarks_cache.npz", n_videos=12, seed=4, fast_share=0.5, classes=cls)
+    (tmp_path / "landmarks.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    rq.build(tmp_path, Path("landmarks_cache.npz"), mlp_numpy.NumpyMLP())
+    items = rq.review_items(tmp_path, strict=True)
+    assert items and all(i["confidence"] >= rq.READY_P and i["suggested"] != "none" for i in items)
+    right = np.mean([qe.norm(i["suggested"]) == qe.norm(cls.get(i["sample_id"])) for i in items])
+    assert right >= 0.85
+    assert len({(i["video_id"], i["suggested"]) for i in items}) == len(items)   # one per letter and video
+    loops = qe.loop_counts(tmp_path, items)
+    assert loops["spotted_window"]["share_one_sign"] >= 0.9
+    assert loops["spotted_window"]["mean"] < loops["fixed_3.5s_window"]["mean"]
+    assert all(i["track"] and i["loop_start"] <= t <= i["loop_end"] for i in items for t, _ in i["track"])

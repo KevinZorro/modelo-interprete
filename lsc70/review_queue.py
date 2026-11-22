@@ -128,8 +128,10 @@ DYNAMIC_CONFIG = Path(__file__).resolve().parent.parent / "configs" / "dynamic_s
 
 
 def load_dynamic_signs(path: Path = DYNAMIC_CONFIG) -> set:
-    """Names of the signs that need movement; the review player loops these, pauses the rest."""
-    return set(json.loads(path.read_text(encoding="utf-8"))["dynamic"])
+    """Names of the signs that need movement; the review player loops these, pauses the rest.
+    The classifier names Ñ as `NN`, so both spellings count."""
+    names = set(json.loads(path.read_text(encoding="utf-8"))["dynamic"])
+    return names | ({"NN"} if "Ñ" in names else set())
 
 
 FIT_MAX_DIST = 0.17    # p95 of cosine distance to the own-class centroid on real held-out poses
@@ -144,6 +146,37 @@ def is_reviewable(item: dict) -> bool:
     reference pose. Dynamic signs are not exempt: a sequence needs another review, not a frame.
     """
     return item["held_s"] >= REVIEW_HOLD_S and item["distance"] <= FIT_MAX_DIST
+
+
+READY_P = 0.80        # mean classifier probability over the sign's samples to show it (to calibrate)
+READY_DYNAMIC = True  # also show moving letters (G, H, J, Ñ, S, Z); a static model is weakest there
+
+
+def is_ready(item: dict) -> bool:
+    """A spotted sign the reviewer will most likely only accept: the classifier names the same
+    letter over the whole hold with mean probability >= READY_P, the hold lasted, and the
+    letter is not `none`. Images have no hold, so only the probability counts for them."""
+    if item.get("confidence") is None or item["suggested"] == "none":
+        return False
+    if item["dynamic"] and not READY_DYNAMIC:
+        return False
+    held_ok = item.get("media") == "image" or item["held_s"] >= REVIEW_HOLD_S
+    return held_ok and item["confidence"] >= READY_P
+
+
+def best_sign_per_letter(items: list, per_video: Optional[int] = None) -> list:
+    """One item per (video, letter), the most confident, at most `per_video` per video: the
+    same signer showing the same letter again adds little and costs another review."""
+    per_video = MAX_PER_VIDEO if per_video is None else per_video
+    keep, seen, count = [], set(), {}
+    for it in sorted(items, key=lambda x: (-x["confidence"], -x["held_s"])):
+        key = (it["video_id"], alias_poses.canonical(it["suggested"]))
+        if key in seen or count.get(it["video_id"], 0) >= per_video:
+            continue
+        seen.add(key)
+        count[it["video_id"]] = count.get(it["video_id"], 0) + 1
+        keep.append(it)
+    return keep
 
 
 MOVING_DISP = 0.15       # hand sizes of raw landmark travel between neighbouring samples
@@ -192,10 +225,12 @@ def best_per_video(items: list, per_video: Optional[int] = None, dup_dist: float
 TRACK_PRE_S, TRACK_POST_S = 1.0, 2.5   # same window the review player loops
 
 
-def track_around(rows: list, t: float) -> list:
-    """[(t_s, landmarks)] of the video's rows inside the player's loop window around `t`."""
+def track_around(rows: list, t: float, window: Optional[tuple] = None) -> list:
+    """[(t_s, landmarks)] of the video's rows inside the player's loop window: `window`
+    (start, end) when the sign was spotted, else the fixed one around `t`."""
+    lo, hi = window if window else (t - TRACK_PRE_S, t + TRACK_POST_S)
     return [[round(_t(r), 3), np.round(np.asarray(r["landmarks"])[:, :2], 3).tolist()]
-            for r in rows if t - TRACK_PRE_S <= _t(r) <= t + TRACK_POST_S]
+            for r in rows if lo <= _t(r) <= hi]
 
 
 RELEVANT_TITLE = re.compile(
@@ -228,13 +263,27 @@ def set_flag(out: Path, video_id: str, embeddable: bool, how: str = "page") -> N
         f.write(json.dumps(rec) + "\n")
 
 
+def _spotted(q: dict) -> dict:
+    """Item fields that come from the sign spotter (see `build`), or {} for an older queue."""
+    if "seg_label" not in q:
+        return {}
+    return {"suggested": q["seg_label"], "suggested_names": alias_poses.display_names(q["seg_label"]),
+            "second": q["seg_second"], "confidence": q["seg_p"], "centroid": q["suggested"],
+            "loop_start": q.get("loop_start"), "loop_end": q.get("loop_end")}
+
+
 def review_items(out: Path, strict: bool = True) -> list:
     """Queue joined with landmarks, deduplicated, numbers first then rest, with any decision.
 
-    With `strict` (default) only held poses that resemble a sign are returned, at most
-    MAX_PER_VIDEO per video, from videos the page can play (embedding not known to be blocked); samples already decided always stay. `strict=False` returns all.
+    When the queue was built with the classifier, each item is one spotted sign (its most
+    confident sample) with the classifier's letter and confidence and the loop window of that
+    sign. With `strict` (default) only signs ready to accept are returned (`is_ready`), one per
+    letter and video; an older queue falls back to held poses that resemble a sign. Videos
+    whose hand mostly travels or that block embedding are left out. Samples already decided
+    always stay. `strict=False` returns all.
     """
     queue = {q["sample_id"]: q for q in read_jsonl(out / "review_queue.jsonl")}
+    spotted = any("seg_label" in q for q in queue.values())
     by_video = {}
     for r in read_jsonl(out / "landmarks.jsonl"):
         if sample_id(r) in queue:
@@ -248,26 +297,34 @@ def review_items(out: Path, strict: bool = True) -> list:
         rows.sort(key=lambda r: r["frame"])
         if strict and video_motion_share(rows) > VIDEO_MOTION_MAX:
             travelling.add(vid)
-        shown = dedupe_segments(rows)
+        if spotted:
+            shown = [{**r, "held_s": queue[sample_id(r)]["seg_held"]} for r in rows
+                     if queue[sample_id(r)].get("seg_rep")]
+        else:
+            shown = dedupe_segments(rows)
         have = {sample_id(r) for r in shown}
         # a decided sample always stays visible, even if a newer dedupe would pick another one
         shown += [{**r, "held_s": 0.0} for r in rows if sample_id(r) in decided and sample_id(r) not in have]
         for r in shown:
             q = queue[sample_id(r)]
-            items.append({**q, "video_id": r["video_id"], "frame": r["frame"],
-                          "dynamic": q.get("media") != "image" and q["suggested"] in dynamic,
+            it = {**q, **_spotted(q)}
+            window = (it["loop_start"], it["loop_end"]) if it.get("loop_start") is not None else None
+            items.append({**it, "video_id": r["video_id"], "frame": r["frame"],
+                          "dynamic": q.get("media") != "image" and it["suggested"] in dynamic,
                           "held_s": r["held_s"],
                           "title": q.get("title") or titles.get(r["video_id"]),
                           "relevant": q.get("media") == "image" or is_relevant_title(titles.get(r["video_id"])),
                           "embeddable": flags.get(r["video_id"]),
-                          "teaching": q.get("media") == "image" or r["held_s"] >= HOLD_S
-                          or q["suggested"] in dynamic,
+                          "teaching": q.get("media") == "image" or r["held_s"] >= REVIEW_HOLD_S
+                          or it["suggested"] in dynamic,
                           "is_left": r["is_left"], "landmarks": r["landmarks"], "features": r["features"],
-                          "track": track_around(rows, _t(r)),
+                          "track": track_around(rows, _t(r), window),
                           "decision": decided.get(q["sample_id"])})
     if strict:
-        kept = best_per_video([x for x in items if x["decision"] is None and is_reviewable(x)
-                               and x["video_id"] not in travelling and x["embeddable"] is not False])
+        ok = [x for x in items if x["decision"] is None and x["video_id"] not in travelling
+              and x["embeddable"] is not False]
+        kept = (best_sign_per_letter([x for x in ok if is_ready(x)]) if spotted
+                else best_per_video([x for x in ok if is_reviewable(x)]))
         ids = {x["sample_id"] for x in kept}
         items = [x for x in items if x["decision"] is not None or x["sample_id"] in ids]
     items.sort(key=lambda x: (not x["teaching"], KIND_PRIORITY.get(x["query_kind"], 9),
@@ -275,11 +332,48 @@ def review_items(out: Path, strict: bool = True) -> list:
     return items
 
 
-def build(out: Path, refs: Path) -> int:
+def add_spotted_signs(rows: list, queue: list, model) -> int:
+    """Run the classifier on every sample and the sign spotter on every video, and write the
+    result into the queue rows: each row gets its own prediction (`mlp`, `mlp_p`) and, when it
+    belongs to a spotted sign, that sign's letter, mean probability, runner-up, length, loop
+    window and whether it is the sign's representative (`seg_rep`). Returns the sign count."""
+    from lsc70 import sign_spotter as ss
+
+    dynamic = load_dynamic_signs()
+    by_video = {}
+    for r, q in zip(rows, queue):
+        by_video.setdefault(r["video_id"], []).append((r, q))
+    n_signs = 0
+    for vid, pairs in by_video.items():
+        pairs.sort(key=lambda x: x[0]["frame"])
+        vrows = [r for r, _ in pairs]
+        P = ss.predict_rows(vrows, model)
+        for (_, q), p in zip(pairs, P):
+            q["mlp"], q["mlp_p"] = model.labels[int(p.argmax())], round(float(p.max()), 4)
+        images = pairs[0][0].get("media") == "image"
+        segs = ([ss._summary([j], int(P[j].argmax()), P, model.labels, [0.0] * len(vrows), 0.0)
+                 for j in range(len(vrows)) if model.labels[int(P[j].argmax())] != ss.NONE]
+                if images else ss.spot(vrows, P, model.labels))
+        for g in segs:
+            start, end = (None, None) if images else ss.loop_window(g, g["label"] in dynamic)
+            info = {"seg": f"{vid}:{vrows[g['rows'][0]]['frame']}", "seg_label": g["label"],
+                    "seg_p": g["p_mean"], "seg_p_min": g["p_min"], "seg_second": g["second"],
+                    "seg_p_second": g["p_second"], "seg_n": g["n"], "seg_held": g["held_s"],
+                    "loop_start": start, "loop_end": end}
+            for j in g["rows"]:
+                pairs[j][1].update(info)
+            pairs[g["rep"]][1]["seg_rep"] = True
+        n_signs += len(segs)
+    return n_signs
+
+
+def build(out: Path, refs: Path, model=None) -> int:
     """Write review_queue.jsonl: every scraped sample, closest to a reference first.
 
-    Reviewed samples stay in the queue: the page joins their decision from reviews.jsonl, so
-    progress survives a rebuild (dropping them hid the work already done).
+    With `model` (the T-08 classifier, see `lsc70.mlp_numpy`) the signs of each video are
+    spotted too (`add_spotted_signs`) and the page shows one item per sign. Reviewed samples
+    stay in the queue: the page joins their decision from reviews.jsonl, so progress survives
+    a rebuild (dropping them hid the work already done).
     """
     rows = [r for r in read_jsonl(out / "landmarks.jsonl") if r.get("review_status") == "pending"]
     queue = []
@@ -292,6 +386,8 @@ def build(out: Path, refs: Path) -> int:
                   "license": r.get("license"), **k,
                   "suggested_names": alias_poses.display_names(k["suggested"])}
                  for r, k in zip(rows, ranked)]
+        if model is not None:
+            add_spotted_signs(rows, queue, model)
         queue.sort(key=lambda q: (q["distance"], -q["margin"]))
     with (out / "review_queue.jsonl").open("w", encoding="utf-8") as f:
         for q in queue:
@@ -400,12 +496,15 @@ def main(argv=None):
         p.add_argument("--out", type=Path, required=True)
         if name == "build":
             p.add_argument("--refs", type=Path, required=True, help="npz with Xtr, ytr, etiquetas")
+            p.add_argument("--no-model", action="store_true",
+                           help="skip the classifier and the sign spotter (older, frame-based queue)")
         if name == "import":
             p.add_argument("--csv", type=Path, required=True)
             p.add_argument("--reviewer", required=True)
     a = ap.parse_args(argv)
     if a.cmd == "build":
-        print({"queued": build(a.out, a.refs)})
+        from lsc70 import mlp_numpy
+        print({"queued": build(a.out, a.refs, None if a.no_model else mlp_numpy.load_default())})
     elif a.cmd == "sheet":
         print(write_sheet(a.out))
     elif a.cmd == "import":

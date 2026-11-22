@@ -50,7 +50,7 @@
     <div>
       <label>Tipo
         <select id="teach">
-          <option value="teaching">enseñadas (≥1 s o con movimiento)</option>
+          <option value="teaching">señas sostenidas</option>
           <option value="talk">probable conversación</option>
           <option value="any">todas</option>
         </select>
@@ -104,8 +104,9 @@
     <div class="actions">
       <button id="bAccept">Aceptar sugerida <kbd>A</kbd></button>
       <button id="bRelabel">Reetiquetar <kbd>R</kbd></button>
-      <button id="bMode">Quieta / en bucle <kbd>D</kbd></button>
+      <button id="bMode">Bucle / pausa <kbd>D</kbd></button>
       <button id="bPlay">Pausa / play <kbd>␣</kbd></button>
+      <button id="bSlow">Cámara lenta <kbd>L</kbd></button>
       <button id="bNone">No es seña <kbd>N</kbd></button>
       <button id="bReject">Rechazar <kbd>X</kbd></button>
       <button id="bUndo">Deshacer <kbd>Z</kbd></button>
@@ -123,8 +124,8 @@
   <div id="empty" class="card" style="display:none">No quedan muestras con este filtro. Cuando termines, ejecuta
     <code>python -m lsc70.review_queue export --out data/scraper</code>.</div>
 
-  <p class="help">Una seña enseñada se mantiene al menos 1 s; si no, suelen estar conversando.<br>Atajos: <kbd>A</kbd> acepta · <kbd>R</kbd> reetiqueta · <kbd>N</kbd> no es seña · <kbd>X</kbd> rechaza ·
-    <kbd>Z</kbd> deshace · <kbd>D</kbd> quieta/bucle · <kbd>␣</kbd> pausa · <kbd>,</kbd> <kbd>.</kbd> avanza 0,1 s · <kbd>←</kbd> <kbd>→</kbd> navegan. La sugerencia solo ordena la cola:
+  <p class="help">Cada tarjeta es una seña que el modelo encontró sostenida en el video; el bucle repite solo esa seña.<br>Atajos: <kbd>A</kbd> acepta · <kbd>R</kbd> reetiqueta · <kbd>N</kbd> no es seña · <kbd>X</kbd> rechaza ·
+    <kbd>Z</kbd> deshace · <kbd>D</kbd> bucle/pausa · <kbd>L</kbd> cámara lenta · <kbd>␣</kbd> pausa · <kbd>,</kbd> <kbd>.</kbd> avanza 0,1 s · <kbd>←</kbd> <kbd>→</kbd> navegan. La sugerencia solo ordena la cola:
     la etiqueta es la que tú decidas. El clip es el reproductor de la plataforma, no se guarda nada.</p>
 </main>
 <script>
@@ -192,12 +193,12 @@ function trackPose(track, t) {
 const t0 = performance.now();
 function animate() {
   if (cur && dyn(cur) && cur.track.length > 1) {
-    const lo = cur.t_s - PRE, span = PRE + POST;
+    const [lo, hi] = win(cur), span = hi - lo;
     let t;
     if (ytReady && ytp.getPlayerState() === 1) t = ytp.getCurrentTime();   // follow the video
     else t = lo + (((performance.now() - t0) / 1000) % span);              // video not playing: own loop
     cur.box = cur.box || trackBox(cur.track.flatMap(f => f[1]));
-    drawLandmarks(trackPose(cur.track, Math.min(Math.max(t, lo), cur.t_s + POST)), cur.box);
+    drawLandmarks(trackPose(cur.track, Math.min(Math.max(t, lo), hi)), cur.box);
   }
 }
 setInterval(animate, 40);   // timer, not rAF: keeps running when the tab is not painted
@@ -217,7 +218,10 @@ window.onYouTubeIframeAPIReady = () => {
 };
 const tag = document.createElement("script"); tag.src = "https://www.youtube.com/iframe_api"; document.head.appendChild(tag);
 
-function dyn(it) { return it.dynamicOverride !== undefined ? it.dynamicOverride : it.dynamic; }
+// a spotted sign loops its own window (build --refs with the classifier); default: loop it,
+// because that window holds only this sign. Older queues keep the fixed window around t_s.
+function win(it) { return it.loop_start != null ? [it.loop_start, it.loop_end] : [Math.max(0, it.t_s - PRE), it.t_s + POST]; }
+function dyn(it) { return it.dynamicOverride !== undefined ? it.dynamicOverride : (it.loop_start != null || it.dynamic); }
 function loadClip() {
   const isImg = cur && cur.media === "image";
   $("pic").style.display = isImg ? "" : "none";
@@ -231,10 +235,11 @@ function loadClip() {
   }
   if (!ytReady || !cur) return;
   clearInterval(loopTimer);
-  const it = cur, start = dyn(it) ? Math.max(0, it.t_s - PRE) : it.t_s;
+  const it = cur, start = dyn(it) ? win(it)[0] : it.t_s;
   it.settled = false;
   ytp.loadVideoById({ videoId: it.video_id, startSeconds: start });
-  $("mode").textContent = dyn(it) ? "seña en movimiento: bucle" : "seña quieta: pausada en el fotograma";
+  const [a, b] = win(it);
+  $("mode").textContent = dyn(it) ? `bucle de esta seña: ${a.toFixed(1)}–${b.toFixed(1)} s` : "pausada en el fotograma";
 }
 function onYtError(e) {
   if (!cur) return;
@@ -250,10 +255,11 @@ function onYtError(e) {
 }
 function onYtState(e) {
   if (!cur || e.data !== YT.PlayerState.PLAYING || cur.settled) return;
+  if (slow) ytp.setPlaybackRate(0.5);   // a new video starts at normal speed
   if (dyn(cur)) {
     cur.settled = true;
     loopTimer = setInterval(() => {
-      if (ytp.getCurrentTime() > cur.t_s + POST) ytp.seekTo(Math.max(0, cur.t_s - PRE), true);
+      if (ytp.getCurrentTime() > win(cur)[1]) ytp.seekTo(win(cur)[0], true);
     }, 150);
   } else {
     cur.settled = true;
@@ -261,6 +267,12 @@ function onYtState(e) {
   }
 }
 function toggleMode() { if (!cur) return; cur.dynamicOverride = !dyn(cur); loadClip(); drawHand(cur); }
+let slow = false;
+function toggleSlow() {
+  slow = !slow;
+  if (ytReady) ytp.setPlaybackRate(slow ? 0.5 : 1);
+  $("bSlow").textContent = slow ? "Velocidad normal" : "Cámara lenta";
+}
 function togglePlay() {
   if (!ytReady) return;
   const st = ytp.getPlayerState();
@@ -286,10 +298,12 @@ function render() {
   $("yt").textContent = it.media === "image" ? "abrir página de origen" : "abrir en YouTube";
   $("sug").textContent = it.suggested_names || it.suggested;
   $("title").textContent = it.title ? "«" + it.title + "»" : "";
-  $("sug2").textContent = `distancia ${it.distance} · segunda: ${it.second} · seg ${t} (${pos + 1}/${view.length})`;
+  $("sug2").textContent = (it.confidence != null
+    ? `confianza ${Math.round(100 * it.confidence)} % · segunda: ${it.second}`
+    : `distancia ${it.distance} · segunda: ${it.second}`) + ` · seg ${t} (${pos + 1}/${view.length})`;
   $("kind").textContent = it.media === "image"
     ? `imagen · búsqueda: ${it.query_kind}${it.hint ? " · pista: " + it.hint : ""}${it.license ? " · " + it.license : ""}`
-    : `búsqueda: ${it.query_kind} · pose mantenida ${it.held_s.toFixed(1)} s`;
+    : `búsqueda: ${it.query_kind} · seña de ${it.held_s.toFixed(1)} s`;
   $("handinfo").textContent = it.is_left ? "mano izquierda" : "mano derecha";
   const d = it.decision;
   $("status").textContent = statusText(d); $("status").className = "status " + (d ? d.decision : "");
@@ -348,6 +362,7 @@ const move = d => { if (view.length) { pos = (pos + d + view.length) % view.leng
 $("bAccept").onclick = () => save("accept", view[pos].suggested);
 $("bMode").onclick = toggleMode;
 $("bPlay").onclick = togglePlay;
+$("bSlow").onclick = toggleSlow;
 $("bNone").onclick = () => save("relabel", "none");   // same name as the training class
 $("bReject").onclick = () => save("reject");
 $("bRelabel").onclick = openRelabel;
@@ -372,6 +387,7 @@ document.addEventListener("keydown", e => {
   if (k === "a") $("bAccept").click();
   else if (k === "d") toggleMode();
   else if (k === " ") { e.preventDefault(); togglePlay(); }
+  else if (k === "l") toggleSlow();
   else if (k === ",") stepFrame(-0.1);
   else if (k === ".") stepFrame(0.1);
   else if (k === "n") $("bNone").click();

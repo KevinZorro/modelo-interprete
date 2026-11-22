@@ -19,6 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
+from lsc70 import mlp_numpy
 from lsc70 import review_queue as rq
 
 MOVING = 0.15   # mean landmark displacement, in hand sizes, between neighbouring samples
@@ -81,7 +82,7 @@ def main(argv=None):
     ap.add_argument("--refs", type=Path, help="rebuild the queue first")
     a = ap.parse_args(argv)
     if a.refs:
-        rq.build(a.out, a.refs)
+        rq.build(a.out, a.refs, mlp_numpy.load_default())
     print(json.dumps(audit(a.out), indent=2))
 
 

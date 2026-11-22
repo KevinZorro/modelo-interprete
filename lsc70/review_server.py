@@ -12,6 +12,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
+from lsc70 import mlp_numpy
 from lsc70 import review_queue as rq
 
 PAGE = Path(__file__).with_name("review_ui.html")
@@ -66,7 +67,7 @@ def main(argv=None):
     ap.add_argument("--all", action="store_true", help="show every sample, not only held poses")
     a = ap.parse_args(argv)
     if a.refs and (a.rebuild or not (a.out / "review_queue.jsonl").exists()):
-        print({"queued": rq.build(a.out, a.refs)})
+        print({"queued": rq.build(a.out, a.refs, mlp_numpy.load_default())})
     labels = list(EXTRA_LABELS)
     if a.refs:
         labels = rq.load_refs(a.refs)[1] + labels

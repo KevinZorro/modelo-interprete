@@ -12,30 +12,33 @@ from lsc70 import review_queue as rq
 STEP_S = 1 / 3
 
 
-def make_videos(npz_path, n_videos=30, seed=0, hold_share=0.25, fast_share=0.0):
+def make_videos(npz_path, n_videos=30, seed=0, hold_share=0.25, fast_share=0.0, classes=None):
     d = np.load(npz_path, allow_pickle=True)
     X, y = d["Xtr"], d["ytr"]
-    keep = y != list(d["etiquetas"]).index("none")
-    X = X[keep]
+    names = [str(e) for e in d["etiquetas"]]
+    keep = y != names.index("none")
+    X, y = X[keep], y[keep]
     rng = np.random.default_rng(seed)
     rows, truth = [], {}
     for v in range(n_videos):
         t, frame, pos = 0.0, 0, rng.uniform(0.3, 0.7, 2)
-        cur = X[rng.integers(len(X))].reshape(21, 3)
+        ix = rng.integers(len(X))
+        cur = X[ix].reshape(21, 3)
         for _ in range(rng.integers(3, 7)):
-            nxt = X[rng.integers(len(X))].reshape(21, 3)
+            nx = rng.integers(len(X))
+            nxt = X[nx].reshape(21, 3)
             moves = []
             # transitions dominate real conversational video; holds are the minority
             n_hold = int(rng.integers(4, 8)) if rng.random() < hold_share * 2 else 0
             if n_hold and rng.random() < fast_share:
                 n_hold = int(rng.integers(2, 4))   # a quick sign: 0.7-1.0 s at 3 samples/s
             for k in range(n_hold):
-                moves.append((cur + rng.normal(0, 0.01, cur.shape), pos + rng.normal(0, 0.002, 2), True))
+                moves.append((cur + rng.normal(0, 0.01, cur.shape), pos + rng.normal(0, 0.002, 2), names[y[ix]]))
             n_tr = int(rng.integers(2, 6))
             target = rng.uniform(0.2, 0.8, 2)
             for k in range(1, n_tr + 1):
                 a = k / (n_tr + 1)
-                moves.append(((1 - a) * cur + a * nxt, pos + a * (target - pos), False))
+                moves.append(((1 - a) * cur + a * nxt, pos + a * (target - pos), None))
             for shape, p, hold in moves:
                 lm = np.round(shape[:, :2] * 0.15 + p, 5)
                 lm3 = np.concatenate([lm, shape[:, 2:] * 0.15], axis=1)
@@ -43,8 +46,10 @@ def make_videos(npz_path, n_videos=30, seed=0, hold_share=0.25, fast_share=0.0):
                      "is_left": False, "landmarks": lm3.tolist(), "features": shape.reshape(-1).tolist(),
                      "query_kind": "lsc", "review_status": "pending"}
                 rows.append(r)
-                truth[rq.sample_id(r)] = hold
+                truth[rq.sample_id(r)] = hold is not None
+                if classes is not None and hold is not None:
+                    classes[rq.sample_id(r)] = hold
                 t += STEP_S
                 frame += 10
-            cur, pos = nxt, target
+            cur, pos, ix = nxt, target, nx
     return rows, truth
