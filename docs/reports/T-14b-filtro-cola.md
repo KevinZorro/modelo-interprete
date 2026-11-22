@@ -38,6 +38,17 @@ Por qué "después (total)" engaña: 322 de las 365 ya tenían decisión humana 
 
 Quedan 94 pendientes limpias frente a la meta de ~200: 22 videos aportaron 51 poses nuevas (~2,3 por video), así que alcanzar 200 pide unos 45 videos buenos más, y el cuello de botella es que muchos videos no se pueden descargar. Basura 0 % solo prueba que el filtro no deja pasar movimiento ni poses sin parecido; si las poses son correctas lo dirá la revisión humana.
 
+**Segunda ampliación (2026-11-21):** el fallo de descarga era el desafío JS de yt-dlp. Se arregló solo con `pip install -U "yt-dlp[default]"` (yt-dlp 2026.10.21 -> 2026.10.26; el extra instala `yt-dlp-ejs` 0.8.0 con el solver local) y el Node v24 ya presente; no hizo falta el solver remoto de GitHub ni cambios de código. Los 28 fallidos se reintentaron solos (nunca entraron a `done.txt`, sin duplicar muestras). Dos `run` más: 23 + 25 = 48 videos buenos (+6764 muestras), 2 fallidos nuevos, sin 429 ni bloqueo de bot, sin cookies. Umbrales sin cambios.
+
+| Conjunto | 63 videos | 85 videos | 132 videos |
+|---|---|---|---|
+| todas las muestras | 2137 | 5316 | 12080 |
+| página antes del filtro (n / basura) | 1706 / 76,3 % | 3935 / 73,6 % | 8604 / 68,1 % |
+| página después, total (n / basura) | 365 / 63,3 % | 416 / 55,5 % | 526 / 43,9 % |
+| **pendientes (n / basura)** | 43 / 0 % | 94 / 0 % | **204 / 0 %** |
+
+Meta de ~200 pendientes cumplida (204). Siguen siendo candidatas: la basura 0 % solo dice que no pasan movimiento ni poses sin parecido; falta la revisión humana, que dirá si son poses correctas. Los candidatos de `discover` se agotaron (107 videos hechos).
+
 **Evidencia:** rama `claude/project-thread-q2rjdn`; `python -m pytest tests/test_review_queue.py -q` → 16 passed (incluye la prueba sintética); `ruff check lsc70 tests --select E,F,W --ignore E501` limpio; auditoría con `python -m lsc70.queue_audit --out data/scraper --refs landmarks_cache.npz`. El resto de la suite no corre aquí por falta de `cv2` (ya ocurría antes).
 
 **Riesgos:** (1) los videos sintéticos son más limpios que los reales: la mano real tiembla y MediaPipe oscila, así que `STILL_MOVE` y `FIT_MAX_DIST` podrían ser muy estrictos o laxos; hay que correr `queue_audit` en el PC de Kevin y mirar `page_after.n`. (2) En datos reales el criterio "en movimiento" de la auditoría se parece al del filtro, no es independiente. (3) La causa de "material poco favorable" puede ser también la selección de videos (`discover`), no tocada. (4) Las señas dinámicas (6-10, G, H, J, Ñ, S, Z) ya no aparecen como fotograma; requieren revisión por secuencia.
