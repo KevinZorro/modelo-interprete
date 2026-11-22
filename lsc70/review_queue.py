@@ -146,6 +146,27 @@ def is_reviewable(item: dict) -> bool:
     return item["held_s"] >= REVIEW_HOLD_S and item["distance"] <= FIT_MAX_DIST
 
 
+MOVING_DISP = 0.15       # hand sizes of raw landmark travel between neighbouring samples
+VIDEO_MOTION_MAX = 0.75  # a video where more samples than this are in motion shows a travelling hand
+
+
+def video_motion_share(rows: list) -> float:
+    """Share of a video's samples (sorted by time) whose raw 2D landmarks moved more than
+    MOVING_DISP hand sizes versus the nearest neighbour within MAX_GAP_S. Samples with no
+    neighbour do not count as moving. A video that is mostly motion keeps leaking poses even
+    after the per-sample hold test, so it is left out of the strict queue as a whole."""
+    n = moving = 0
+    for i, r in enumerate(rows):
+        near = [rows[j] for j in (i - 1, i + 1) if 0 <= j < len(rows)
+                and abs(_t(rows[j]) - _t(r)) <= MAX_GAP_S and "landmarks" in rows[j]]
+        if not near or "landmarks" not in r:
+            continue
+        n += 1
+        if min(_drift(r, o) for o in near) > MOVING_DISP:
+            moving += 1
+    return moving / n if n else 0.0
+
+
 DUP_DIST = 0.02   # cosine distance under which two poses of one video are the same pose
 
 
@@ -222,8 +243,11 @@ def review_items(out: Path, strict: bool = True) -> list:
     dynamic = load_dynamic_signs()
     titles, flags = load_titles(out), load_flags(out)
     items = []
-    for rows in by_video.values():
+    travelling = set()
+    for vid, rows in by_video.items():
         rows.sort(key=lambda r: r["frame"])
+        if strict and video_motion_share(rows) > VIDEO_MOTION_MAX:
+            travelling.add(vid)
         shown = dedupe_segments(rows)
         have = {sample_id(r) for r in shown}
         # a decided sample always stays visible, even if a newer dedupe would pick another one
@@ -242,7 +266,8 @@ def review_items(out: Path, strict: bool = True) -> list:
                           "track": track_around(rows, _t(r)),
                           "decision": decided.get(q["sample_id"])})
     if strict:
-        kept = best_per_video([x for x in items if x["decision"] is None and is_reviewable(x)])
+        kept = best_per_video([x for x in items if x["decision"] is None and is_reviewable(x)
+                               and x["video_id"] not in travelling])
         ids = {x["sample_id"] for x in kept}
         items = [x for x in items if x["decision"] is not None or x["sample_id"] in ids]
     items.sort(key=lambda x: (not x["teaching"], KIND_PRIORITY.get(x["query_kind"], 9),
