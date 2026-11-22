@@ -147,7 +147,7 @@ def is_reviewable(item: dict) -> bool:
 
 
 MOVING_DISP = 0.15       # hand sizes of raw landmark travel between neighbouring samples
-VIDEO_MOTION_MAX = 0.75  # a video where more samples than this are in motion shows a travelling hand
+VIDEO_MOTION_MAX = 0.80  # a video where more samples than this are in motion shows a travelling hand
 
 
 def video_motion_share(rows: list) -> float:
