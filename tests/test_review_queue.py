@@ -253,3 +253,23 @@ def test_strict_queue_skips_videos_that_cannot_be_embedded(tmp_path):
     rq.set_flag(tmp_path, vid, False, "test")
     assert not [i for i in rq.review_items(tmp_path) if i["video_id"] == vid]
     assert len(rq.review_items(tmp_path, strict=False)) == len(every)
+
+
+def test_suggestion_follows_the_video_kind(tmp_path):
+    rng = np.random.default_rng(3)
+    names = ["B", "F", "V", "W", "none"]
+    proto = {c: rng.normal(size=63) for c in names}
+    np.savez(tmp_path / "refs.npz", Xtr=np.vstack([proto[c] for c in names for _ in range(3)]),
+             ytr=np.repeat(np.arange(len(names)), 3), etiquetas=np.array(names))
+    rows = [{"video_id": vid, "frame": 0, "t_s": 0.0, "url": f"https://y.test/watch?v={vid}", "query_kind": "lsc",
+             "is_left": False, "landmarks": [[0.0, 0.0, 0.0]] * 21, "features": list(proto[pose]),
+             "label": None, "review_status": "pending"} for vid, pose in (("num", "B"), ("abc", "none"))]
+    (tmp_path / "landmarks.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    (tmp_path / "candidates.jsonl").write_text(
+        json.dumps({"video_id": "num", "title": "Números del 1 al 10"}) + "\n"
+        + json.dumps({"video_id": "abc", "title": "Abecedario LSC"}) + "\n", encoding="utf-8")
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    q = {x["sample_id"].split(":")[0]: x for x in rq.read_jsonl(tmp_path / "review_queue.jsonl")}
+    assert q["num"]["kind"] == "numbers" and q["num"]["suggested"] in ("F", "V", "W")   # a B is not offered
+    assert q["num"]["distance"] < 0.01                     # the filters still see a pose that fits a sign
+    assert q["abc"]["kind"] == "letters" and q["abc"]["suggested"] != "none"

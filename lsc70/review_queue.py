@@ -156,7 +156,8 @@ def is_reviewable(item: dict) -> bool:
     Moving hands and transitions are single frames (never held) or sit far from every
     reference pose. Dynamic signs are not exempt: a sequence needs another review, not a frame.
     """
-    return item["held_s"] >= REVIEW_HOLD_S and item["distance"] <= FIT_MAX_DIST
+    held = item.get("media") == "image" or item["held_s"] >= REVIEW_HOLD_S   # a picture has no hold
+    return held and item["distance"] <= FIT_MAX_DIST
 
 
 MOVING_DISP = 0.15       # hand sizes of raw landmark travel between neighbouring samples
@@ -255,6 +256,43 @@ def is_relevant_title(title: Optional[str]) -> bool:
     return bool(RELEVANT_TITLE.search(t)) and not OTHER_LANGUAGE.search(t)
 
 
+LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "NN",
+           "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
+NUMBER_POSES = ["F", "V", "W", "4", "5", "6", "7", "8", "9", "10", "MIL", "MILLON"]  # 1, 2, 3 = F, V, W
+NUMBERS_TITLE = re.compile(r"n[uú]mer|numbers?\b|\bcontar\b|counting|\b1 al 10\b", re.I)
+LETTERS_TITLE = re.compile(r"abecedario|alfabeto|alphabet|spelling|deletre|dactilolog|\bletras?\b", re.I)
+
+
+def video_kind(title: Optional[str], query_kind: Optional[str] = None) -> str:
+    """letters, numbers or mixed, from the title; the search that found it when the title says neither."""
+    t = title or ""
+    num, let = bool(NUMBERS_TITLE.search(t)), bool(LETTERS_TITLE.search(t))
+    if num and let:
+        return "mixed"
+    if num or let:
+        return "numbers" if num else "letters"
+    return {"numeros": "numbers", "lsc": "letters"}.get(query_kind, "mixed")
+
+
+def allowed_classes(kind: str, names: list) -> np.ndarray:
+    """Reference classes a video of this kind may be suggested; never none (the N key says that)."""
+    ok = set(LETTERS) if kind == "letters" else set(NUMBER_POSES) if kind == "numbers" else set(names)
+    mask = np.array([n in ok and n != "none" for n in names])
+    return mask if mask.any() else np.array([n != "none" for n in names])
+
+
+def suggestions(features: np.ndarray, cent: np.ndarray, names: list, kinds: list, k: int = 3) -> list:
+    """The k nearest reference classes each row's video kind allows. An alphabet lesson is only
+    offered letters and a number lesson the number poses: on the reviewer's own decisions this
+    raised the right suggestion from 46 % to 56 % of real signs (docs/reports/T-22.md)."""
+    dist = 1.0 - _unit(np.asarray(features, dtype=np.float64)) @ cent.T
+    out = []
+    for d, kind in zip(dist, kinds):
+        d = np.where(allowed_classes(kind, names), d, np.inf)
+        out.append([names[j] for j in np.argsort(d, kind="stable")[:k]])
+    return out
+
+
 def load_titles(out: Path) -> dict:
     return {c["video_id"]: c.get("title") for c in read_jsonl(out / "candidates.jsonl")}
 
@@ -309,7 +347,7 @@ def review_items(out: Path, strict: bool = True) -> list:
                           "title": q.get("title") or titles.get(r["video_id"]),
                           "relevant": q.get("media") == "image" or is_relevant_title(titles.get(r["video_id"])),
                           "embeddable": flags.get(r["video_id"]),
-                          "teaching": q.get("media") == "image" or r["held_s"] >= HOLD_S
+                          "teaching": q.get("media") == "image" or r["held_s"] >= REVIEW_HOLD_S
                           or q["suggested"] in dynamic,
                           "is_left": r["is_left"], "landmarks": r["landmarks"], "features": r["features"],
                           "clip": list(clips.get((r.get("seg_start"), r.get("seg_end")),
@@ -333,6 +371,9 @@ def review_items(out: Path, strict: bool = True) -> list:
 def build(out: Path, refs: Path) -> int:
     """Write review_queue.jsonl: every scraped sample, closest to a reference first.
 
+    `distance` and `margin` say how much the pose looks like any reference sign (the filters
+    and the scorer use them); `suggested` is the nearest class the video's kind allows.
+
     Reviewed samples stay in the queue: the page joins their decision from reviews.jsonl, so
     progress survives a rebuild (dropping them hid the work already done).
     """
@@ -340,13 +381,18 @@ def build(out: Path, refs: Path) -> int:
     queue = []
     if rows:
         cent, names = load_refs(refs)
-        ranked = rank_samples(np.asarray([r["features"] for r in rows]), cent, names)
+        F = np.asarray([r["features"] for r in rows])
+        ranked = rank_samples(F, cent, names)
+        titles = load_titles(out)
+        kinds = ["mixed" if r.get("media") == "image" else
+                 video_kind(titles.get(r["video_id"]) or r.get("title"), r.get("query_kind")) for r in rows]
+        sug = suggestions(F, cent, names, kinds, k=2)
         queue = [{"sample_id": sample_id(r), "url": r["url"], "t_s": r["t_s"],
                   "query_kind": r["query_kind"], "media": r.get("media", "video"),
                   "image_url": r.get("image_url"), "hint": r.get("hint"), "title": r.get("title"),
-                  "license": r.get("license"), **k,
-                  "suggested_names": alias_poses.display_names(k["suggested"])}
-                 for r, k in zip(rows, ranked)]
+                  "license": r.get("license"), **k, "kind": kind, "suggested": s2[0], "second": s2[1],
+                  "suggested_names": alias_poses.display_names(s2[0])}
+                 for r, k, kind, s2 in zip(rows, ranked, kinds, sug)]
         queue.sort(key=lambda q: (q["distance"], -q["margin"]))
     with (out / "review_queue.jsonl").open("w", encoding="utf-8") as f:
         for q in queue:

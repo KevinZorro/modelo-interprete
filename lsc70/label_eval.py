@@ -3,9 +3,10 @@
 Every sample the reviewer accepted, or relabelled to a sign, is a ground truth (none and
 reject are left out: the question here is the letter, not whether it is a sign).
 
-  centroid   nearest ANH class centroid: what the page suggests today (no numbers but 1/2/3)
+  centroid   nearest ANH class centroid (letters; 1/2/3 are the F/V/W poses)
   numbers    the same, plus the ANH numbers (4-10, MIL, MILLON) as their own classes
-  +kind      the title says alphabet or numbers: only those classes are suggested
+  +kind      the title says alphabet or numbers: only those classes are suggested.
+             centroid+kind is what the page suggests (`review_queue.suggestions`)
 
 Top-1 is what "only accept" needs; top-3 is what three one-key buttons would cover. Also
 counts the pending items by video kind, to see how much each kind weighs in what is left.
@@ -16,19 +17,13 @@ reviewer's own labels as references and an alphabet-order pass. Nothing here lab
 """
 import argparse
 import json
-import re
 from pathlib import Path
 
 import numpy as np
 
 from lsc70 import alias_poses
 from lsc70 import review_queue as rq
-
-LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "NN",
-           "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"]
-NUMBERS = ["F", "V", "W", "4", "5", "6", "7", "8", "9", "10", "MIL", "MILLON"]  # 1, 2, 3 = F, V, W
-NUMBERS_TITLE = re.compile(r"n[uú]mer|numbers?\b|\bcontar\b|counting|\b1 al 10\b", re.I)
-LETTERS_TITLE = re.compile(r"abecedario|alfabeto|alphabet|spelling|deletre|dactilolog|\bletras?\b", re.I)
+from lsc70.review_queue import LETTERS, video_kind
 
 
 def norm(label):
@@ -42,23 +37,6 @@ def norm(label):
     return alias_poses.canonical(lab)
 
 
-def video_kind(title, query_kind=None) -> str:
-    """letters, numbers or mixed, from the title; the search that found it when the title says neither."""
-    t = title or ""
-    num, let = bool(NUMBERS_TITLE.search(t)), bool(LETTERS_TITLE.search(t))
-    if num and let:
-        return "mixed"
-    if num or let:
-        return "numbers" if num else "letters"
-    return {"numeros": "numbers", "lsc": "letters"}.get(query_kind, "mixed")
-
-
-def allowed(kind: str, names: list) -> np.ndarray:
-    """Which reference classes a video of this kind may be suggested."""
-    ok = set(LETTERS) if kind == "letters" else set(NUMBERS) if kind == "numbers" else set(names) - {"none"}
-    return np.array([n in ok for n in names])
-
-
 def wilson(k: int, n: int, z: float = 1.96) -> list:
     if n == 0:
         return [None, None]
@@ -66,13 +44,6 @@ def wilson(k: int, n: int, z: float = 1.96) -> list:
     c = (p + z * z / (2 * n)) / (1 + z * z / n)
     h = z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / (1 + z * z / n)
     return [round(c - h, 3), round(c + h, 3)]
-
-
-def _ranked(F: np.ndarray, cent: np.ndarray, names: list, mask=None, k: int = 3) -> list:
-    d = 1.0 - rq._unit(F) @ cent.T
-    if mask is not None:
-        d = np.where(mask[None, :], d, np.inf)
-    return [[names[j] for j in row[:k]] for row in np.argsort(d, axis=1, kind="stable")]
 
 
 def collect(out: Path, refs: Path) -> list:
@@ -94,8 +65,8 @@ def collect(out: Path, refs: Path) -> list:
         F = np.asarray([r["features"]], dtype=np.float64)
         pred = {}
         for name, (cent, names) in (("centroid", base), ("numbers", nums)):
-            pred[name] = _ranked(F, cent, names, allowed("mixed", names))[0]
-            pred[name + "+kind"] = _ranked(F, cent, names, allowed(kind, names))[0]
+            pred[name] = rq.suggestions(F, cent, names, ["mixed"])[0]
+            pred[name + "+kind"] = rq.suggestions(F, cent, names, [kind])[0]   # what the page suggests
         recs.append({"sid": rq.sample_id(r), "vid": r["video_id"], "truth": truth[rq.sample_id(r)],
                      "kind": kind, "pred": pred})
     return recs
