@@ -27,6 +27,17 @@
 
 Por qué "después (total)" engaña: 322 de las 365 ya tenían decisión humana y la página las conserva siempre (así no se pierde el trabajo), y ese 63 % es la basura de antes. Lo que el filtro selecciona de verdad son las 43 pendientes, con 0 % de basura. Por eso `queue_audit` ahora devuelve `page_after_pending`. Deriva de mano entre fotogramas vecinos en esas 43 (en tamaños de mano): p50 0,023, p90 0,047, p95 0,059, frente a `MOVING` 0,15; distancia coseno máxima 0,151 frente a `FIT_MAX_DIST` 0,17; sostenidas 1,0-4,6 s. Hay holgura en ambos umbrales, así que no se ajustan: endurecerlos bajaría n (43, el piso útil es ~30) sin quitar basura medible.
 
+**Corrida de ampliación (2026-11-21, solo landmarks; video temporal, nunca guardado):** `discover --preset` para `lsc` y `numeros` (+70 candidatos), luego dos `run` (25 videos máx. cada uno), sin 429 ni bloqueo de bot. Procesados 14 + 8 = 22 videos buenos (+3179 muestras; 28 fallidos, sin formato disponible: YouTube no resolvió el desafío JS de yt-dlp). Umbrales sin cambios.
+
+| Conjunto | Antes (63 videos) | Después (85 videos) |
+|---|---|---|
+| todas las muestras | 2137 | 5316 |
+| página antes del filtro (n / basura) | 1706 / 76,3 % | 3935 / 73,6 % |
+| página después, total (n / basura) | 365 / 63,3 % | 416 / 55,5 % |
+| **pendientes (n / basura)** | **43 / 0 %** | **94 / 0 %** |
+
+Quedan 94 pendientes limpias frente a la meta de ~200: 22 videos aportaron 51 poses nuevas (~2,3 por video), así que alcanzar 200 pide unos 45 videos buenos más, y el cuello de botella es que muchos videos no se pueden descargar. Basura 0 % solo prueba que el filtro no deja pasar movimiento ni poses sin parecido; si las poses son correctas lo dirá la revisión humana.
+
 **Evidencia:** rama `claude/project-thread-q2rjdn`; `python -m pytest tests/test_review_queue.py -q` → 16 passed (incluye la prueba sintética); `ruff check lsc70 tests --select E,F,W --ignore E501` limpio; auditoría con `python -m lsc70.queue_audit --out data/scraper --refs landmarks_cache.npz`. El resto de la suite no corre aquí por falta de `cv2` (ya ocurría antes).
 
 **Riesgos:** (1) los videos sintéticos son más limpios que los reales: la mano real tiembla y MediaPipe oscila, así que `STILL_MOVE` y `FIT_MAX_DIST` podrían ser muy estrictos o laxos; hay que correr `queue_audit` en el PC de Kevin y mirar `page_after.n`. (2) En datos reales el criterio "en movimiento" de la auditoría se parece al del filtro, no es independiente. (3) La causa de "material poco favorable" puede ser también la selección de videos (`discover`), no tocada. (4) Las señas dinámicas (6-10, G, H, J, Ñ, S, Z) ya no aparecen como fotograma; requieren revisión por secuencia.
