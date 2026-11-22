@@ -232,7 +232,7 @@ def review_items(out: Path, strict: bool = True) -> list:
     """Queue joined with landmarks, deduplicated, numbers first then rest, with any decision.
 
     With `strict` (default) only held poses that resemble a sign are returned, at most
-    MAX_PER_VIDEO per video; samples already decided always stay. `strict=False` returns all.
+    MAX_PER_VIDEO per video, from videos the page can play (embedding not known to be blocked); samples already decided always stay. `strict=False` returns all.
     """
     queue = {q["sample_id"]: q for q in read_jsonl(out / "review_queue.jsonl")}
     by_video = {}
@@ -267,7 +267,7 @@ def review_items(out: Path, strict: bool = True) -> list:
                           "decision": decided.get(q["sample_id"])})
     if strict:
         kept = best_per_video([x for x in items if x["decision"] is None and is_reviewable(x)
-                               and x["video_id"] not in travelling])
+                               and x["video_id"] not in travelling and x["embeddable"] is not False])
         ids = {x["sample_id"] for x in kept}
         items = [x for x in items if x["decision"] is not None or x["sample_id"] in ids]
     items.sort(key=lambda x: (not x["teaching"], KIND_PRIORITY.get(x["query_kind"], 9),
