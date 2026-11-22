@@ -223,3 +223,15 @@ def test_quick_signs_in_a_fast_clip_are_kept(tmp_path):
     holds = {k for k, v in truth.items() if v}
     assert len(ids & holds) >= 0.45 * len(holds) / 3   # several signs per video survive, one pose each
     assert np.mean([not truth[i] for i in ids]) <= 0.10
+
+
+def test_same_pose_shown_again_in_a_video_is_reviewed_once():
+    a, b = [1.0] + [0.0] * 62, [0.0, 1.0] + [0.0] * 61
+    base = {"held_s": 1.0, "distance": 0.05}
+    items = [{**base, "video_id": "v", "features": a, "held_s": 2.0},
+             {**base, "video_id": "v", "features": [x + 0.001 for x in a]},
+             {**base, "video_id": "v", "features": b},
+             {**base, "video_id": "w", "features": a}]
+    kept = rq.best_per_video(items)
+    assert sorted((k["video_id"], k["features"][1] > 0.5) for k in kept) == [("v", False), ("v", True), ("w", False)]
+    assert max(k["held_s"] for k in kept if k["video_id"] == "v") == 2.0
