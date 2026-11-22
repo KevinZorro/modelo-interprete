@@ -189,15 +189,17 @@ function trackPose(track, t) {
   }
   return track[track.length - 1][1];
 }
+// the loop is the item's own sign event [lo, hi] (the server cuts it at the neighbouring signs)
+const clipOf = it => it.clip || [Math.max(0, it.t_s - 1.0), it.t_s + 2.5];
 const t0 = performance.now();
 function animate() {
   if (cur && dyn(cur) && cur.track.length > 1) {
-    const lo = cur.t_s - PRE, span = PRE + POST;
+    const [lo, hi] = clipOf(cur), span = Math.max(hi - lo, 0.5);
     let t;
     if (ytReady && ytp.getPlayerState() === 1) t = ytp.getCurrentTime();   // follow the video
     else t = lo + (((performance.now() - t0) / 1000) % span);              // video not playing: own loop
     cur.box = cur.box || trackBox(cur.track.flatMap(f => f[1]));
-    drawLandmarks(trackPose(cur.track, Math.min(Math.max(t, lo), cur.t_s + POST)), cur.box);
+    drawLandmarks(trackPose(cur.track, Math.min(Math.max(t, lo), hi)), cur.box);
   }
 }
 setInterval(animate, 40);   // timer, not rAF: keeps running when the tab is not painted
@@ -209,7 +211,6 @@ function statusText(d) {
 
 // ----- player: still sign = paused on the sampled frame; moving sign = looped window -----
 let ytp = null, ytReady = false, cur = null, loopTimer = null;
-const PRE = 1.0, POST = 2.5;
 window.onYouTubeIframeAPIReady = () => {
   ytp = new YT.Player("player", { width: "100%", height: "100%",
     playerVars: { rel: 0, playsinline: 1, origin: location.origin },
@@ -231,7 +232,7 @@ function loadClip() {
   }
   if (!ytReady || !cur) return;
   clearInterval(loopTimer);
-  const it = cur, start = dyn(it) ? Math.max(0, it.t_s - PRE) : it.t_s;
+  const it = cur, start = dyn(it) ? clipOf(it)[0] : it.t_s;
   it.settled = false;
   ytp.loadVideoById({ videoId: it.video_id, startSeconds: start });
   $("mode").textContent = dyn(it) ? "seña en movimiento: bucle" : "seña quieta: pausada en el fotograma";
@@ -253,7 +254,8 @@ function onYtState(e) {
   if (dyn(cur)) {
     cur.settled = true;
     loopTimer = setInterval(() => {
-      if (ytp.getCurrentTime() > cur.t_s + POST) ytp.seekTo(Math.max(0, cur.t_s - PRE), true);
+      const [lo, hi] = clipOf(cur);
+      if (ytp.getCurrentTime() > hi) ytp.seekTo(lo, true);
     }, 150);
   } else {
     cur.settled = true;

@@ -18,7 +18,7 @@ from typing import Optional
 
 import numpy as np
 
-from lsc70 import alias_poses
+from lsc70 import alias_poses, queue_score
 
 DECISIONS = ("accept", "relabel", "reject")
 SHEET_COLS = ["sample_id", "url_at_time", "query_kind", "suggested", "distance",
@@ -119,7 +119,8 @@ def dedupe_segments(rows: list, threshold: float = 0.06, long_segment: int = 8) 
             seg = list(range(start, i))
             held = round(_t(rows[seg[-1]]) - _t(rows[seg[0]]) + step, 3)
             picks = {seg[len(seg) // 2]} | ({seg[0]} if len(seg) >= long_segment else set())
-            keep += [{**rows[j], "held_s": held} for j in sorted(picks)]
+            keep += [{**rows[j], "held_s": held, "seg_start": _t(rows[seg[0]]), "seg_end": _t(rows[seg[-1]])}
+                     for j in sorted(picks)]
             start = i
     return keep
 
@@ -189,13 +190,43 @@ def best_per_video(items: list, per_video: Optional[int] = None, dup_dist: float
     return keep
 
 
-TRACK_PRE_S, TRACK_POST_S = 1.0, 2.5   # same window the review player loops
+TRACK_PRE_S, TRACK_POST_S = 1.0, 2.5   # old fixed loop window (kept for samples with no event bounds)
+CLIP_PAD_PRE, CLIP_PAD_POST = 1.0, 1.0  # context around one sign event, in seconds
+CLIP_MAX_S = 4.0
 
 
-def track_around(rows: list, t: float) -> list:
-    """[(t_s, landmarks)] of the video's rows inside the player's loop window around `t`."""
+def event_clips(segments: list, held_min: float = None) -> dict:
+    """{(seg_start, seg_end): (clip_start, clip_end)} for the held segments of one video.
+
+    A loop of a fixed 3.5 s window showed ~3 consecutive signs of a fast lesson. The clip of a
+    sign event is its own segment plus CLIP_PAD_* seconds of context, cut at the end of the
+    previous event and the start of the next one, and never longer than CLIP_MAX_S, so a loop
+    contains exactly one held sign. `segments` are (start, end, held_s) tuples.
+    """
+    held_min = REVIEW_HOLD_S if held_min is None else held_min
+    segs = sorted(set(segments))
+    events = [(a, b) for a, b, h in segs if h >= held_min]
+    out = {}
+    for a, b, _ in segs:
+        prev_end = max([e for s0, e in events if e < a], default=None)
+        next_start = min([s0 for s0, e in events if s0 > b], default=None)
+        lo = a - CLIP_PAD_PRE if prev_end is None else max(a - CLIP_PAD_PRE, (prev_end + a) / 2)
+        hi = b + CLIP_PAD_POST if next_start is None else min(b + CLIP_PAD_POST, (b + next_start) / 2)
+        if hi - lo > CLIP_MAX_S:
+            mid = (a + b) / 2
+            lo, hi = max(lo, mid - CLIP_MAX_S / 2), min(hi, mid + CLIP_MAX_S / 2)
+        out[(a, b)] = (round(max(0.0, lo), 3), round(hi, 3))
+    return out
+
+
+def track_around(rows: list, t: float, lo: float = None, hi: float = None) -> list:
+    """[(t_s, landmarks)] of the video's rows inside the player's loop window.
+
+    The window is the item's own event clip [lo, hi]; without bounds, the old fixed one around `t`."""
+    lo = t - TRACK_PRE_S if lo is None else lo
+    hi = t + TRACK_POST_S if hi is None else hi
     return [[round(_t(r), 3), np.round(np.asarray(r["landmarks"])[:, :2], 3).tolist()]
-            for r in rows if t - TRACK_PRE_S <= _t(r) <= t + TRACK_POST_S]
+            for r in rows if lo <= _t(r) <= hi]
 
 
 RELEVANT_TITLE = re.compile(
@@ -242,6 +273,7 @@ def review_items(out: Path, strict: bool = True) -> list:
     decided = latest_reviews(out)
     dynamic = load_dynamic_signs()
     titles, flags = load_titles(out), load_flags(out)
+    scorer = queue_score.load()
     items = []
     travelling = set()
     for vid, rows in by_video.items():
@@ -249,12 +281,17 @@ def review_items(out: Path, strict: bool = True) -> list:
         if strict and video_motion_share(rows) > VIDEO_MOTION_MAX:
             travelling.add(vid)
         shown = dedupe_segments(rows)
+        clips = event_clips([(r["seg_start"], r["seg_end"], r["held_s"]) for r in shown])
         have = {sample_id(r) for r in shown}
+        unit = _unit(np.asarray([r["features"] for r in rows], dtype=np.float64))
+        at = {r["frame"]: n for n, r in enumerate(rows)}
         # a decided sample always stays visible, even if a newer dedupe would pick another one
         shown += [{**r, "held_s": 0.0} for r in rows if sample_id(r) in decided and sample_id(r) not in have]
         for r in shown:
             q = queue[sample_id(r)]
-            items.append({**q, "video_id": r["video_id"], "frame": r["frame"],
+            pose = queue_score.pose_features(rows, unit, at[r["frame"]], q["distance"], MAX_GAP_S)
+            items.append({**q, "video_id": r["video_id"], "frame": r["frame"], "pose": pose,
+                          "score": queue_score.score(scorer, pose) if scorer else None,
                           "dynamic": q.get("media") != "image" and q["suggested"] in dynamic,
                           "held_s": r["held_s"],
                           "title": q.get("title") or titles.get(r["video_id"]),
@@ -263,15 +300,21 @@ def review_items(out: Path, strict: bool = True) -> list:
                           "teaching": q.get("media") == "image" or r["held_s"] >= HOLD_S
                           or q["suggested"] in dynamic,
                           "is_left": r["is_left"], "landmarks": r["landmarks"], "features": r["features"],
-                          "track": track_around(rows, _t(r)),
+                          "clip": list(clips.get((r.get("seg_start"), r.get("seg_end")),
+                                                 (_t(r) - TRACK_PRE_S, _t(r) + TRACK_POST_S))),
+                          "track": track_around(rows, _t(r), *clips[(r["seg_start"], r["seg_end"])])
+                          if "seg_start" in r else track_around(rows, _t(r)),
                           "decision": decided.get(q["sample_id"])})
     if strict:
+        cut = scorer.get("min_score") if scorer else None
         kept = best_per_video([x for x in items if x["decision"] is None and is_reviewable(x)
-                               and x["video_id"] not in travelling and x["embeddable"] is not False])
+                               and x["video_id"] not in travelling and x["embeddable"] is not False
+                               and (cut is None or x.get("media") == "image" or x["score"] >= cut)])
         ids = {x["sample_id"] for x in kept}
         items = [x for x in items if x["decision"] is not None or x["sample_id"] in ids]
+    # most likely real signs first (score), so the quick accepts come early; no scorer: by video/time
     items.sort(key=lambda x: (not x["teaching"], KIND_PRIORITY.get(x["query_kind"], 9),
-                              x["video_id"], x["frame"]))
+                              -(x["score"] if x["score"] is not None else 0.0), x["video_id"], x["frame"]))
     return items
 
 

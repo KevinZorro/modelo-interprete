@@ -124,3 +124,7 @@ resultados negativos. Léelo antes de proponer un experimento para no repetir.
 - Config: `lsc70/t08_export.py` · semilla 1 · commit de la rama `claude/project-thread-gwy9ap` · sin test congelado.
 - Resultado: dif. máx. 8.3e-7, argmax y decisión idénticos en 100 %; 0.19 MB; 0.003 ms por inferencia en CPU de escritorio (no celular).
 - Conclusión: paridad cumplida; falta latencia en gama media. Detalle en `docs/reports/T-08.md`.
+
+
+## T-22 — Una seña por bucle y puntaje de aceptación de la cola (2026-11-22)
+**Hipótesis:** un filtro de quietud no separa señas de reposo; pose, tamaño de mano, velocidad y repetición en el video sí. **Baseline:** cola estricta (quieta ≥ 0,6 s + distancia ≤ 0,17): entre las decisiones de Kevin que la pasan, 31 % son señas reales. **Prueba:** regresión logística de 5 señales, validación cruzada por video (6 pliegues, semillas 0-2), 325 decisiones, 48 señas, 25 videos. **Resultado:** AUC 0,802 ± 0,006; precisión 54 % en el 10 % mejor (base 14,8 %); tiempo mantenido y margen sin valor (AUC ≈ 0,5). **Conclusión:** el puntaje ordena y recorta bien, pero "aceptar" depende de la etiqueta sugerida, que acierta 46 % en señas reales y no tiene dígitos. Detalle: `docs/reports/T-22.md`.
