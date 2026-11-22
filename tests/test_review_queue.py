@@ -235,3 +235,21 @@ def test_same_pose_shown_again_in_a_video_is_reviewed_once():
     kept = rq.best_per_video(items)
     assert sorted((k["video_id"], k["features"][1] > 0.5) for k in kept) == [("v", False), ("v", True), ("w", False)]
     assert max(k["held_s"] for k in kept if k["video_id"] == "v") == 2.0
+
+
+def test_video_with_a_travelling_hand_is_left_out_of_the_strict_queue(tmp_path):
+    moving = [_row(i, 0.1 + 0.2 * (i % 2)) for i in range(6)]       # jumps 0.2 every sample
+    still = [_row(i, 0.5) for i in range(6)]
+    assert rq.video_motion_share(moving) == 1.0
+    assert rq.video_motion_share(still) == 0.0
+    assert rq.video_motion_share(still[:1]) == 0.0
+
+
+def test_strict_queue_skips_videos_that_cannot_be_embedded(tmp_path):
+    _write_run(tmp_path, n=6)
+    rq.build(tmp_path, tmp_path / "refs.npz")
+    every = rq.review_items(tmp_path, strict=False)
+    vid = every[0]["video_id"]
+    rq.set_flag(tmp_path, vid, False, "test")
+    assert not [i for i in rq.review_items(tmp_path) if i["video_id"] == vid]
+    assert len(rq.review_items(tmp_path, strict=False)) == len(every)
