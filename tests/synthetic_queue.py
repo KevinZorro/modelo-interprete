@@ -12,7 +12,7 @@ from lsc70 import review_queue as rq
 STEP_S = 1 / 3
 
 
-def make_videos(npz_path, n_videos=30, seed=0, hold_share=0.25):
+def make_videos(npz_path, n_videos=30, seed=0, hold_share=0.25, fast_share=0.0):
     d = np.load(npz_path, allow_pickle=True)
     X, y = d["Xtr"], d["ytr"]
     keep = y != list(d["etiquetas"]).index("none")
@@ -27,6 +27,8 @@ def make_videos(npz_path, n_videos=30, seed=0, hold_share=0.25):
             moves = []
             # transitions dominate real conversational video; holds are the minority
             n_hold = int(rng.integers(4, 8)) if rng.random() < hold_share * 2 else 0
+            if n_hold and rng.random() < fast_share:
+                n_hold = int(rng.integers(2, 4))   # a quick sign: 0.7-1.0 s at 3 samples/s
             for k in range(n_hold):
                 moves.append((cur + rng.normal(0, 0.01, cur.shape), pos + rng.normal(0, 0.002, 2), True))
             n_tr = int(rng.integers(2, 6))

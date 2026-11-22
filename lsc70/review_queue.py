@@ -133,7 +133,8 @@ def load_dynamic_signs(path: Path = DYNAMIC_CONFIG) -> set:
 
 
 FIT_MAX_DIST = 0.17    # p95 of cosine distance to the own-class centroid on real held-out poses
-MAX_PER_VIDEO = 3      # a video shows its best few poses, not every frame of the clip
+REVIEW_HOLD_S = 0.6    # two consecutive samples of the 3 fps scrape (~0.67 s): quick signs in a fast clip count
+MAX_PER_VIDEO = 30     # an alphabet video has 27 signs; the cap only stops a runaway clip
 
 
 def is_reviewable(item: dict) -> bool:
@@ -142,11 +143,12 @@ def is_reviewable(item: dict) -> bool:
     Moving hands and transitions are single frames (never held) or sit far from every
     reference pose. Dynamic signs are not exempt: a sequence needs another review, not a frame.
     """
-    return item["held_s"] >= HOLD_S and item["distance"] <= FIT_MAX_DIST
+    return item["held_s"] >= REVIEW_HOLD_S and item["distance"] <= FIT_MAX_DIST
 
 
-def best_per_video(items: list, per_video: int = MAX_PER_VIDEO) -> list:
+def best_per_video(items: list, per_video: Optional[int] = None) -> list:
     """Keep the `per_video` most confident items of each video (longest held, then nearest)."""
+    per_video = MAX_PER_VIDEO if per_video is None else per_video
     keep, count = [], {}
     for it in sorted(items, key=lambda x: (-x["held_s"], x["distance"])):
         n = count.get(it["video_id"], 0)

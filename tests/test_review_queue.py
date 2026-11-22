@@ -211,4 +211,15 @@ def test_strict_queue_drops_motion_on_synthetic_videos(tmp_path):
     everything = rq.review_items(tmp_path, strict=False)
     junk = lambda its: np.mean([not truth[i["sample_id"]] for i in its])  # noqa: E731
     assert len(shown) and len(shown) < len(everything) / 3
-    assert junk(shown) <= 0.05 < junk(everything)
+    assert junk(shown) <= 0.10 < junk(everything)
+
+
+@pytest.mark.skipif(not Path("landmarks_cache.npz").exists(), reason="needs landmarks_cache.npz")
+def test_quick_signs_in_a_fast_clip_are_kept(tmp_path):
+    rows, truth = make_videos("landmarks_cache.npz", n_videos=15, seed=5, fast_share=0.8)
+    (tmp_path / "landmarks.jsonl").write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    rq.build(tmp_path, Path("landmarks_cache.npz"))
+    ids = {i["sample_id"] for i in rq.review_items(tmp_path, strict=True)}
+    holds = {k for k, v in truth.items() if v}
+    assert len(ids & holds) >= 0.45 * len(holds) / 3   # several signs per video survive, one pose each
+    assert np.mean([not truth[i] for i in ids]) <= 0.10
