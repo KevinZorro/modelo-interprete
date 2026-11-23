@@ -3,7 +3,8 @@
     python -m lsc70.queue_audit --out data/scraper --refs landmarks_cache.npz
 
 A queued sample is junk when ANY of these holds (all computed from the landmarks):
-  isolated  no other detection of the same video within MAX_GAP_S (a passing frame);
+  isolated  no other detection of the same video within MAX_GAP_S (a passing frame;
+            pictures are exempt, they are single frames by nature);
   moving    the raw 2D landmarks moved more than MOVING hand-sizes versus the nearest
             neighbour in time (the hand is travelling, whatever its shape);
   no_fit    cosine distance to every reference pose above FIT_MAX_DIST.
@@ -36,7 +37,9 @@ def junk_flags(rows: list, distances: dict) -> dict:
         reasons = set()
         near = [j for j in (i - 1, i + 1) if 0 <= j < len(rows)
                 and abs(rq._t(rows[j]) - rq._t(r)) <= rq.MAX_GAP_S]
-        if not near:
+        if r.get("media") == "image":
+            pass                       # a single picture has no neighbours in time and cannot move
+        elif not near:
             reasons.add("isolated")
         else:
             move = min(float(np.linalg.norm(lms[j][:, :2] - lms[i][:, :2], axis=1).mean()) / _hand_size(lms[i])

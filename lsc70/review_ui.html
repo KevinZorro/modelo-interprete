@@ -50,7 +50,7 @@
     <div>
       <label>Tipo
         <select id="teach">
-          <option value="teaching">enseñadas (≥1 s o con movimiento)</option>
+          <option value="teaching">enseñadas (≥0,6 s o con movimiento)</option>
           <option value="talk">probable conversación</option>
           <option value="any">todas</option>
         </select>
@@ -123,7 +123,7 @@
   <div id="empty" class="card" style="display:none">No quedan muestras con este filtro. Cuando termines, ejecuta
     <code>python -m lsc70.review_queue export --out data/scraper</code>.</div>
 
-  <p class="help">Una seña enseñada se mantiene al menos 1 s; si no, suelen estar conversando.<br>Atajos: <kbd>A</kbd> acepta · <kbd>R</kbd> reetiqueta · <kbd>N</kbd> no es seña · <kbd>X</kbd> rechaza ·
+  <p class="help">Una seña enseñada se mantiene al menos 0,6 s; si no, suelen estar conversando.<br>Atajos: <kbd>A</kbd> acepta · <kbd>1</kbd>…<kbd>9</kbd> <kbd>0</kbd> guardan ese número · <kbd>R</kbd> reetiqueta · <kbd>N</kbd> no es seña · <kbd>X</kbd> rechaza ·
     <kbd>Z</kbd> deshace · <kbd>D</kbd> quieta/bucle · <kbd>␣</kbd> pausa · <kbd>,</kbd> <kbd>.</kbd> avanza 0,1 s · <kbd>←</kbd> <kbd>→</kbd> navegan. La sugerencia solo ordena la cola:
     la etiqueta es la que tú decidas. El clip es el reproductor de la plataforma, no se guarda nada.</p>
 </main>
@@ -380,6 +380,7 @@ document.addEventListener("keydown", e => {
   else if (k === "x") $("bReject").click();
   else if (k === "r") { e.preventDefault(); openRelabel(); }
   else if (k === "z") $("bUndo").click();
+  else if (/^[0-9]$/.test(k)) save("relabel", k);   // number lessons: the number you see, in one key
   else if (k === "arrowleft") move(-1);
   else if (k === "arrowright") move(1);
 });
