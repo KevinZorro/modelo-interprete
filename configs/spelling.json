@@ -1,14 +1,38 @@
 {
   "version": 1,
-  "hold_ms": 400,
+  "hold_ms": 1000,
   "min_frames": 3,
   "release_ms": 200,
+  "entry_guard_ms": 300,
   "word_pause_ms": 1500,
   "max_word_letters": 20,
-  "excluded_letters": ["G", "H", "J", "S", "Z", "NN"],
+  "excluded_letters": [
+    "G",
+    "H",
+    "J",
+    "S",
+    "Z",
+    "NN"
+  ],
   "dynamic_letters_note": "G, H, J, NN, S, Z involve movement (kevin, 2026-10); the static model cannot spell them, so words using them are dropped from the lexicon until the dynamic model (T-09..T-11) exists.",
   "min_sub_cost": 0.35,
-  "max_cost_by_length": {"1": 0.0, "2": 0.0, "3": 1.0, "4": 1.0, "5": 1.0, "6": 1.5, "7": 1.5, "default": 2.0},
+  "edge_delete_cost": 0.4,
+  "max_cost_by_length": {
+    "1": 0.0,
+    "2": 0.0,
+    "3": 1.0,
+    "4": 1.0,
+    "5": 1.0,
+    "6": 1.5,
+    "7": 1.5,
+    "default": 2.0
+  },
   "ambiguity_margin": 0.25,
-  "max_candidates": 3
+  "max_candidates": 3,
+  "gestures": {
+    "extended_min": 1.2,
+    "curled_max": 1.0,
+    "spread_min": 0.25,
+    "thumb_out_min": 1.0
+  }
 }

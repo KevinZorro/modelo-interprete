@@ -38,7 +38,7 @@ def words(events):
 
 
 def test_long_hold_confirms_once():
-    assert letters(run([("A", 3000)])) == ["A"]
+    assert letters(run([("A", 3500)])) == ["A"]
 
 
 def test_short_touch_is_not_a_letter():
@@ -47,43 +47,43 @@ def test_short_touch_is_not_a_letter():
 
 def test_same_letter_needs_release():
     assert letters(run([("L", 1500)])) == ["L"]
-    assert letters(run([("L", 600), ("_", 300), ("L", 600)])) == ["L", "L"]
+    assert letters(run([("L", 1400), ("_", 300), ("L", 1400)])) == ["L", "L"]
 
 
 def test_short_gap_does_not_repeat():
     # a 100 ms dropout inside a hold is tracking noise, not a second L
-    assert letters(run([("L", 600), ("r", 100), ("L", 600)])) == ["L"]
+    assert letters(run([("L", 1400), ("r", 100), ("L", 1400)])) == ["L"]
 
 
 def test_different_letters_need_no_release():
-    assert letters(run([("C", 600), ("A", 600), ("R", 600)])) == ["C", "A", "R"]
+    assert letters(run([("C", 1400), ("A", 1400), ("R", 1400)])) == ["C", "A", "R"]
 
 
 def test_one_frame_flicker_does_not_double_a_letter():
-    ev = run([("L", 600), ("K", 33), ("L", 600)])
+    ev = run([("L", 1400), ("K", 33), ("L", 1400)])
     assert letters(ev) == ["L"]
 
 
 def test_word_calle_with_repeated_l():
-    ev = run([("C", 600), ("A", 600), ("L", 600), ("_", 300), ("L", 600), ("E", 600), ("_", 2000)])
+    ev = run([("C", 1400), ("A", 1400), ("L", 1400), ("_", 300), ("L", 1400), ("E", 1400), ("_", 2000)])
     w = words(ev)
     assert len(w) == 1 and w[0].letters == ("C", "A", "L", "L", "E") and w[0].best == "CALLE"
 
 
 def test_word_perro_rr_is_two_r():
-    ev = run([("P", 500), ("E", 500), ("R", 500), ("_", 300), ("R", 500), ("O", 500), ("_", 2000)])
+    ev = run([("P", 1400), ("E", 1400), ("R", 1400), ("_", 300), ("R", 1400), ("O", 1400), ("_", 2000)])
     assert words(ev)[0].best == "PERRO"
 
 
 def test_misread_low_confidence_letter_is_corrected():
-    ev = run([("C", 600), ("A", 600), ("L", 600), ("_", 300), ("L", 600), ("O", 600, 0.4), ("_", 2000)])
+    ev = run([("C", 1400), ("A", 1400), ("L", 1400), ("_", 300), ("L", 1400), ("O", 1400, 0.4), ("_", 2000)])
     w = words(ev)[0]
     assert w.letters[-1] == "O" and w.best == "CALLE"
 
 
 def test_confident_wrong_letter_is_not_hidden():
     # distance > budget for 5 letters with two confident substitutions -> no match, raw letters kept
-    ev = run([("X", 500), ("X", 500), ("_", 300), ("X", 500), ("U", 500), ("_", 2000)])
+    ev = run([("X", 1400), ("X", 1400), ("_", 300), ("X", 1400), ("U", 1400), ("_", 2000)])
     w = words(ev)[0]
     assert w.letters and w.best is None
 
@@ -95,28 +95,28 @@ def test_short_words_must_match_exactly():
 
 
 def test_word_ends_only_after_pause():
-    ev = run([("A", 600), ("_", 900)])
+    ev = run([("A", 1400), ("_", 900)])
     assert not words(ev)
-    ev = run([("A", 600), ("_", 1600)])
+    ev = run([("A", 1400), ("_", 1600)])
     assert len(words(ev)) == 1
 
 
 def test_rejected_frames_between_letters_do_not_end_word():
-    ev = run([("C", 600), ("r", 500), ("A", 600), ("r", 500), ("L", 600), ("_", 2000)])
+    ev = run([("C", 1400), ("r", 500), ("A", 1400), ("r", 500), ("L", 1400), ("_", 2000)])
     assert words(ev)[0].letters == ("C", "A", "L")
 
 
 def test_finish_flushes_word():
     eng = SpellingEngine()
-    for f in hold("M", 600, 0) + gap(300, 600):
+    for f in hold("M", 1400, 0) + gap(300, 600):
         eng.push(f)
-    ev = eng.finish(1000)
+    ev = eng.finish(2000)
     assert isinstance(ev[0], WordFinished) and ev[0].letters == ("M",)
 
 
 def test_two_words_back_to_back():
-    ev = run([("M", 600), ("A", 600), ("R", 600), ("_", 2000), ("S", 10), ("L", 600), ("U", 600),
-              ("N", 600), ("A", 600), ("_", 2000)])
+    ev = run([("M", 1400), ("A", 1400), ("R", 1400), ("_", 2000), ("S", 10), ("L", 1400), ("U", 1400),
+              ("N", 1400), ("A", 1400), ("_", 2000)])
     assert [w.best for w in words(ev)] == ["MAR", "LUNA"]
 
 
@@ -133,3 +133,73 @@ def test_lexicon_drops_dynamic_letters():
     bad = set(cfg.excluded_letters)
     assert all(not (set(u) & bad) for _, u in lex)
     assert "CALLE" in [w for w, _ in lex] and "CASA" not in [w for w, _ in lex]
+
+
+# --- T-22: 1 s hold, entry guard, edge letters, gestures --------------------------------
+from lsc70.spelling import (GESTURE_DELETE, GESTURE_SPACE, DeleteWordRequested,  # noqa: E402
+                            LetterDeleted)
+
+
+def test_default_hold_is_one_second():
+    assert Config.load().hold_ms == 1000
+    # 800 ms held is not enough, 1400 (300 guard + 1000 hold + slack) is
+    assert letters(run([("A", 800), ("_", 300)])) == []
+    assert letters(run([("A", 1400)])) == ["A"]
+
+
+def test_letters_in_the_first_300_ms_of_a_hand_are_ignored():
+    # a hand that enters showing O for 600 ms and then settles on A: the O never counts
+    ev = run([("O", 600), ("A", 1400)])
+    assert letters(ev) == ["A"]
+
+
+def test_edge_letters_from_raising_and_lowering_the_hand_are_dropped_by_the_decoder():
+    eng = SpellingEngine()
+    obs = [("O", 0.7), ("M", 0.9), ("A", 0.9), ("M", 0.9), ("A", 0.9), ("O", 0.7)]
+    best, _, _ = decode(obs, eng.lexicon, eng.cfg)
+    assert best == "MAMA"
+
+
+def test_edge_deletion_does_not_rescue_a_wrong_middle():
+    eng = SpellingEngine()
+    obs = [("X", 0.9), ("X", 0.9), ("X", 0.9), ("X", 0.9)]
+    assert decode(obs, eng.lexicon, eng.cfg)[0] is None
+
+
+def test_delete_gesture_removes_last_letter():
+    ev = run([("M", 1400), ("A", 1400), ("X", 1400), (GESTURE_DELETE, 1400), ("_", 2000)])
+    assert [e.letter for e in ev if isinstance(e, LetterDeleted)] == ["X"]
+    assert words(ev)[0].letters == ("M", "A")
+
+
+def test_delete_gesture_with_no_letters_asks_to_delete_a_word():
+    ev = run([(GESTURE_DELETE, 1400)])
+    assert any(isinstance(e, DeleteWordRequested) for e in ev)
+
+
+def test_delete_needs_release_to_repeat():
+    ev = run([("M", 1400), ("A", 1400), ("R", 1400), (GESTURE_DELETE, 3500)])
+    assert len([e for e in ev if isinstance(e, LetterDeleted)]) == 1
+
+
+def test_space_gesture_ends_the_word_at_once():
+    ev = run([("M", 1400), ("A", 1400), ("R", 1400), (GESTURE_SPACE, 1400)])
+    w = words(ev)
+    assert len(w) == 1 and w[0].best == "MAR"
+    assert not any(isinstance(e, LetterConfirmed) and e.letter == GESTURE_SPACE for e in ev)
+
+
+def test_gestures_never_enter_the_letters():
+    ev = run([("M", 1400), (GESTURE_DELETE, 1400), ("A", 1400), (GESTURE_SPACE, 1400)])
+    assert all(not e.letter.startswith("@") for e in ev if isinstance(e, LetterConfirmed))
+
+
+def test_progress_ring():
+    eng = SpellingEngine()
+    for f in hold("A", 1000, 0):
+        eng.push(f)
+    label, frac = eng.progress
+    assert label == "A" and 0.4 < frac < 0.9
+    for f in hold("A", 1400, 1030):
+        eng.push(f)
+    assert eng.progress == (None, 0.0)  # confirmed: waiting for a release
