@@ -10,6 +10,11 @@ Why this shape (see docs/reports/T-20.md):
   written by releasing: a non-letter gap of ``release_ms``. A DIFFERENT letter needs no release.
 - A word ends after ``word_pause_ms`` without a letter; the letters are then decoded against a
   closed lexicon with a confidence-weighted edit distance, so a misread letter can be fixed.
+- Gestures (``GESTURE_DELETE`` / ``GESTURE_SPACE``) travel through the same hold/release machine as
+  letters, so they need the same hold and a release to repeat; they never become letters.
+- Frames in the first ``entry_guard_ms`` after a hand appears are ignored (the hand is still
+  moving into place), and the decoder deletes a first/last observed letter cheaply
+  (``edge_delete_cost``): the extra letters at the edges are what raising/lowering the hand adds.
 - LL and RR are two repeated base letters (L L, R R); N-tilde is the class ``NN``. The model has
   no class for the digraphs, so they live in the lexicon, not in the classifier.
 """
@@ -25,6 +30,8 @@ CONFIG_PATH = ROOT / "configs" / "spelling.json"
 LEXICON_PATH = ROOT / "configs" / "palabras_deletreo.txt"
 
 LETTER, REJECTED, NO_HAND = "letter", "rejected", "no_hand"
+GESTURE_DELETE, GESTURE_SPACE = "@BORRAR", "@ESPACIO"
+GESTURES = (GESTURE_DELETE, GESTURE_SPACE)
 
 
 @dataclass(frozen=True)
@@ -44,6 +51,18 @@ class LetterConfirmed:
 
 
 @dataclass(frozen=True)
+class LetterDeleted:
+    t_ms: int
+    letter: str
+
+
+@dataclass(frozen=True)
+class DeleteWordRequested:
+    """Delete gesture with no letters in progress: the UI should drop its last finished word."""
+    t_ms: int
+
+
+@dataclass(frozen=True)
 class Candidate:
     word: str
     cost: float
@@ -60,13 +79,15 @@ class WordFinished:
 
 @dataclass
 class Config:
-    hold_ms: int = 400
+    hold_ms: int = 1000
     min_frames: int = 3
     release_ms: int = 200
+    entry_guard_ms: int = 300
     word_pause_ms: int = 1500
     max_word_letters: int = 20
     excluded_letters: tuple[str, ...] = ("G", "H", "J", "S", "Z", "NN")
     min_sub_cost: float = 0.35
+    edge_delete_cost: float = 0.4
     max_cost_by_length: dict = field(default_factory=lambda: {
         "1": 0.0, "2": 0.0, "3": 1.0, "4": 1.0, "5": 1.0, "6": 1.5, "7": 1.5, "default": 2.0})
     ambiguity_margin: float = 0.25
@@ -120,18 +141,21 @@ def load_lexicon(path: Path = LEXICON_PATH, excluded: tuple[str, ...] = ()) -> l
 
 
 # ----------------------------------------------------------------------------- decoder
-def weighted_distance(observed: list[tuple[str, float]], target: tuple[str, ...], min_sub: float) -> float:
+def weighted_distance(observed: list[tuple[str, float]], target: tuple[str, ...], min_sub: float,
+                      edge_delete: float = 1.0) -> float:
     """Levenshtein where insert/delete cost 1 and substituting an observed letter costs its
     confidence (floored at ``min_sub``): a doubtful letter is cheap to overrule."""
     n, m = len(observed), len(target)
     prev = [float(j) for j in range(m + 1)]
     for i in range(1, n + 1):
-        cur = [float(i)] + [0.0] * m
+        cur = [0.0] * (m + 1)
         letter, conf = observed[i - 1]
         sub = max(min_sub, min(1.0, conf))
+        drop = edge_delete if i in (1, n) else 1.0
+        cur[0] = prev[0] + drop
         for j in range(1, m + 1):
             same = letter == target[j - 1]
-            cur[j] = min(prev[j] + 1.0, cur[j - 1] + 1.0, prev[j - 1] + (0.0 if same else sub))
+            cur[j] = min(prev[j] + drop, cur[j - 1] + 1.0, prev[j - 1] + (0.0 if same else sub))
         prev = cur
     return prev[m]
 
@@ -142,9 +166,9 @@ def decode(observed: list[tuple[str, float]], lexicon, cfg: Config):
         return None, (), False
     scored = []
     for rank, (word, units) in enumerate(lexicon):
-        if abs(len(units) - len(observed)) > 2:  # cannot be within budget anyway
+        if abs(len(units) - len(observed)) > 3:  # cannot be within budget anyway
             continue
-        scored.append((weighted_distance(observed, units, cfg.min_sub_cost), rank, word))
+        scored.append((weighted_distance(observed, units, cfg.min_sub_cost, cfg.edge_delete_cost), rank, word))
     scored.sort()
     limit = cfg.max_cost(len(observed))
     good = [Candidate(w, round(c, 4)) for c, _, w in scored if c <= limit + 1e-9][: cfg.max_candidates]
@@ -169,17 +193,33 @@ class SpellingEngine:
         self._cand_conf = 0.0
         self._blocked: str | None = None               # last confirmed letter, until released
         self._idle_start: int | None = None            # start of the current non-letter stretch
+        self._hand_since: int | None = None            # start of the current hand-present stretch
         self._last_t = 0
 
     # public -----------------------------------------------------------------------
     def push(self, f: Frame) -> list:
         events: list = []
         self._last_t = f.t_ms
+        if f.kind == NO_HAND:
+            self._hand_since = None
+        elif self._hand_since is None:
+            self._hand_since = f.t_ms
+        if (f.kind == LETTER and f.label and self._hand_since is not None
+                and f.t_ms - self._hand_since < self.cfg.entry_guard_ms):
+            f = Frame(f.t_ms, REJECTED)  # the hand is still moving into place
         if f.kind == LETTER and f.label:
             self._on_letter(f, events)
         else:
             self._on_idle(f, events)
         return events
+
+    @property
+    def progress(self) -> tuple[str | None, float]:
+        """(label being held, 0..1 of the hold time) for a progress ring; (None, 0) if idle or
+        if the held label was already confirmed and is waiting for a release."""
+        if self._idle_start is not None or self._cand is None or self._cand == self._blocked:
+            return None, 0.0
+        return self._cand, min(1.0, (self._last_t - self._cand_start) / self.cfg.hold_ms)
 
     def tick(self, t_ms: int) -> list:
         """Advance time with no information (e.g. camera stopped): counts as no hand."""
@@ -206,11 +246,19 @@ class SpellingEngine:
         if (held >= self.cfg.hold_ms and self._cand_frames >= self.cfg.min_frames
                 and f.label != self._blocked):
             conf = self._cand_conf / self._cand_frames
-            self._letters.append((f.label, conf))
             self._blocked = f.label
-            events.append(LetterConfirmed(f.t_ms, f.label, round(conf, 4)))
-            if len(self._letters) >= self.cfg.max_word_letters:
+            if f.label == GESTURE_DELETE:
+                if self._letters:
+                    events.append(LetterDeleted(f.t_ms, self._letters.pop()[0]))
+                else:
+                    events.append(DeleteWordRequested(f.t_ms))
+            elif f.label == GESTURE_SPACE:
                 self._end_word(f.t_ms, events)
+            else:
+                self._letters.append((f.label, conf))
+                events.append(LetterConfirmed(f.t_ms, f.label, round(conf, 4)))
+                if len(self._letters) >= self.cfg.max_word_letters:
+                    self._end_word(f.t_ms, events)
 
     def _on_idle(self, f: Frame, events: list) -> None:
         if self._idle_start is None:
